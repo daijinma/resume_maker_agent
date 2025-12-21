@@ -1,0 +1,14 @@
+[project]
+name = "resume-agent"
+version = "0.1.0"
+description = "A resume generation agent using LLM"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "httpx",
+    "python-dotenv",
+    "openai",
+]
+
+[tool.uv]
+dev-dependencies = []

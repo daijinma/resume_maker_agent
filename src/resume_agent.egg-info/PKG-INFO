@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: resume-agent
+Version: 0.1.0
+Summary: A resume generation agent using LLM
+Requires-Dist: fastapi
+Requires-Dist: uvicorn
+Requires-Dist: httpx
+Requires-Dist: python-dotenv
+Requires-Dist: openai

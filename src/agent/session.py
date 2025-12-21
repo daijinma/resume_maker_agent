@@ -37,6 +37,16 @@ class SessionManager:
         except Exception as e:
             logger.error(f"保存会话文件失败: {e}")
 
-    def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
-        """获取特定会话的数据"""
-        return self.sessions.get(session_id)
+    def get_session(self, session_id: str) -> Dict[str, Any]:
+        """获取特定会话的数据，如果不存在则返回初始结构"""
+        if session_id not in self.sessions:
+            self.sessions[session_id] = {
+                "resume_data": {
+                    "personal_info": {},
+                    "education": [],
+                    "experience": [],
+                    "skills": []
+                },
+                "history": []
+            }
+        return self.sessions[session_id]

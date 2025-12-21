@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Agent 可视化调试</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .json-block {
+            background-color: #f4f4f9;
+            border-left: 4px solid #4f46e5;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin: 0.5rem 0;
+        }
+        .debug-info {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
+            font-style: italic;
+        }
+        .message-user {
+            background-color: #e0e7ff;
+            align-self: flex-end;
+            white-space: pre-wrap;
+        }
+        .message-agent {
+            background-color: #ffffff;
+            border: 1px solid #e5e7eb;
+            align-self: flex-start;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 h-screen flex flex-col">
+    <!-- Header -->
+    <header class="bg-white shadow-sm p-4">
+        <h1 class="text-xl font-bold text-gray-800 text-center">Resume Agent 可视化调试终端</h1>
+    </header>
+
+    <!-- Chat Container -->
+    <main id="chat-container" class="flex-1 overflow-y-auto p-4 flex flex-col space-y-4">
+        <!-- Messages will appear here -->
+    </main>
+
+    <!-- Input Area -->
+    <footer class="bg-white border-t p-4">
+        <div class="max-w-4xl mx-auto flex space-x-4">
+            <input type="text" id="user-input" 
+                class="flex-1 border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                placeholder="输入消息，例如：我在字节跳动做过后端开发...">
+            <button id="send-btn" 
+                class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition">
+                发送
+            </button>
+        </div>
+    </footer>
+
+    <script>
+        const chatContainer = document.getElementById('chat-container');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        let sessionId = 'debug_session_' + Math.random().toString(36).substring(2, 15);
+        let currentEventSource = null;
+        let startTime = null;
+        let timerInterval = null;
+
+        function appendMessage(role, content, isJson = false, debug = null, messageId = null) {
+            const div = document.createElement('div');
+            div.className = `p-3 rounded-lg relative group ${role === 'user' ? 'message-user max-w-[80%]' : 'message-agent w-full'}`;
+            if (messageId) div.dataset.messageId = messageId;
+            
+            if (isJson) {
+                const pre = document.createElement('pre');
+                pre.className = 'json-block text-sm overflow-x-auto';
+                pre.textContent = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
+                div.appendChild(pre);
+            } else {
+                const textSpan = document.createElement('span');
+                textSpan.textContent = content;
+                div.appendChild(textSpan);
+            }
+
+            if (debug && debug.model) {
+                const debugDiv = document.createElement('div');
+                debugDiv.className = 'debug-info';
+                debugDiv.textContent = `[${debug.agent}] 模型: ${debug.model} | 耗时: ${debug.duration}`;
+                div.appendChild(debugDiv);
+            }
+
+            // 为用户消息增加重试按钮
+            if (role === 'user') {
+                const retryBtn = document.createElement('button');
+                retryBtn.className = 'absolute -left-10 top-1/2 -translate-y-1/2 hidden group-hover:block p-1 text-gray-400 hover:text-indigo-600 transition';
+                retryBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
+                    </svg>
+                `;
+                retryBtn.title = '重试此消息';
+                retryBtn.onclick = () => {
+                    if (currentEventSource) {
+                        currentEventSource.close();
+                        appendMessage('agent', '--- 已中断当前请求，正在重试 ---');
+                    }
+                    startChat(content);
+                };
+                div.appendChild(retryBtn);
+            }
+            
+            chatContainer.appendChild(div);
+            
+            // 确保计时器始终在最底部
+            const existingTimer = document.getElementById('current-timer');
+            if (existingTimer) {
+                chatContainer.appendChild(existingTimer);
+            }
+            
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (!message) return;
+            userInput.value = '';
+            appendMessage('user', message);
+            startChat(message);
+        }
+
+        function startChat(message) {
+            if (currentEventSource) {
+                currentEventSource.close();
+            }
+            if (timerInterval) {
+                clearInterval(timerInterval);
+            }
+
+            startTime = Date.now();
+            
+            // 创建计时器显示区域
+            const timerDiv = document.createElement('div');
+            timerDiv.className = 'text-center text-sm font-bold text-indigo-500 my-4 p-2 bg-indigo-50 rounded-lg border border-indigo-100 animate-pulse';
+            timerDiv.id = 'current-timer';
+            timerDiv.textContent = '正在思考中: 0.0s';
+            chatContainer.appendChild(timerDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            timerInterval = setInterval(() => {
+                const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                timerDiv.textContent = `正在思考中: ${elapsed}s`;
+            }, 100);
+
+            const url = `/chat/stream?message=${encodeURIComponent(message)}&session_id=${sessionId}`;
+            currentEventSource = new EventSource(url);
+
+            currentEventSource.onmessage = (event) => {
+                console.log("SSE Message:", event.data);
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'status') {
+                    appendMessage('agent', data.content, false, data.debug);
+                } else if (data.type === 'partial') {
+                    appendMessage('agent', data.content, true, data.debug);
+                } else if (data.type === 'final') {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                    
+                    const endTime = Date.now();
+                    const totalTime = ((endTime - startTime) / 1000).toFixed(2);
+                    
+                    // 先打印最终消息
+                    appendMessage('agent', data.content, false, data.debug);
+                    
+                    // 更新计时器为最终状态并停止动画
+                    timerDiv.className = 'text-center text-xs text-gray-400 my-4 border-t pt-2';
+                    timerDiv.textContent = `✅ 消息处理完成，总耗时: ${totalTime}s`;
+                    timerDiv.id = ''; // 移除 ID 防止冲突
+
+                    currentEventSource.close();
+                    currentEventSource = null;
+                } else if (data.type === 'error') {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                    timerDiv.remove();
+                    
+                    appendMessage('agent', `错误: ${data.content}`);
+                    currentEventSource.close();
+                    currentEventSource = null;
+                }
+            };
+
+            currentEventSource.onerror = (err) => {
+                console.error("SSE Error:", err);
+                currentEventSource.close();
+                currentEventSource = null;
+            };
+        }
+
+        sendBtn.addEventListener('click', sendMessage);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+    </script>
+</body>
+</html>

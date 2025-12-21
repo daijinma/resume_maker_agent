@@ -7,3 +7,6 @@ Requires-Dist: uvicorn
 Requires-Dist: httpx
 Requires-Dist: python-dotenv
 Requires-Dist: openai
+Requires-Dist: sse-starlette
+Requires-Dist: langchain
+Requires-Dist: langchain-openai

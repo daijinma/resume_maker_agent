@@ -22,9 +22,9 @@ sync:
 	@uv pip install -e .
 
 # 启动开发服务器：先执行 sync 确保库是最新的
-dev: sync
+dev:
 	@echo "正在启动服务..."
-	uv run python src/main.py
+	lsof -ti:8000 | xargs kill -9 && PYTHONPATH=. uv run python src/main.py
 
 # 清理环境
 clean:

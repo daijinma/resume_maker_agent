@@ -17,4 +17,5 @@
 当前简历数据: {% resume_data %}
 推理洞察: {% inference_insights %}
 最后一次操作意图: {% last_intent %}
+待补充/追问字段: {% pending_questions %}
 ```

@@ -47,6 +47,7 @@ class SessionManager:
                     "experience": [],
                     "skills": []
                 },
-                "history": []
+                "history": [],
+                "pending_questions": []
             }
         return self.sessions[session_id]

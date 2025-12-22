@@ -8,10 +8,12 @@ src/agent/__init__.py
 src/agent/aggregator.py
 src/agent/base.py
 src/agent/executor.py
+src/agent/inference.py
 src/agent/planner.py
 src/agent/router.py
 src/agent/session.py
 src/agent/tooling.py
+src/agent/tools.py
 src/agent/workers.py
 src/resume_agent.egg-info/PKG-INFO
 src/resume_agent.egg-info/SOURCES.txt

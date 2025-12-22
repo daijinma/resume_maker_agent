@@ -6,3 +6,4 @@ openai
 sse-starlette
 langchain
 langchain-openai
+jinja2>=3.1.6

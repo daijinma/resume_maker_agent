@@ -69,7 +69,23 @@
 
         function appendMessage(role, content, isJson = false, debug = null, messageId = null) {
             const div = document.createElement('div');
+            
+            // 优化：状态消息使用更紧凑的样式
+            if (role === 'agent' && !isJson && !debug && content.startsWith('---')) {
+                div.className = 'text-center text-xs text-gray-400 my-2';
+                div.textContent = content;
+                chatContainer.appendChild(div);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+                return;
+            }
+
             div.className = `p-3 rounded-lg relative group ${role === 'user' ? 'message-user max-w-[80%]' : 'message-agent w-full'}`;
+            
+            // 优化：如果是状态更新，使用不同的背景色
+            if (role === 'agent' && !isJson && !debug) {
+                div.classList.add('bg-blue-50', 'border-blue-100', 'text-blue-700', 'text-sm');
+            }
+
             if (messageId) div.dataset.messageId = messageId;
             
             if (isJson) {
@@ -149,7 +165,7 @@
 
             timerInterval = setInterval(() => {
                 const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-                timerDiv.textContent = `正在思考中: ${elapsed}s`;
+                timerDiv.textContent = `⚡ 极速模式运行中: ${elapsed}s`;
             }, 100);
 
             const url = `/chat/stream?message=${encodeURIComponent(message)}&session_id=${sessionId}`;

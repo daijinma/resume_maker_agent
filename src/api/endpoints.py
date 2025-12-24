@@ -19,11 +19,20 @@ async def chat(request: ChatRequest):
     session_data = session_manager.get_session(session_id)
     
     try:
-        plan = await orchestrator.plan_and_route(user_input, session_data)
-        intents = plan["intents"]
-        await orchestrator.execute_workers(intents, user_input, session_data)
-        await orchestrator.infer_and_verify(session_data)
-        response_text = await orchestrator.summarize_response(session_data, intents)
+        route_result = await orchestrator.route_request(user_input, session_data)
+        intents = route_result.get("intents", ["chat"])
+        orchestrator.update_slots(route_result, session_data)
+        
+        # 优化：如果是纯闲聊，直接进入汇总
+        if len(intents) == 1 and intents[0] == "chat":
+            response_text = await orchestrator.get_response(session_data, intents)
+        else:
+            await orchestrator.run_workers(intents, user_input, session_data)
+            # 默认跳过推理
+            should_infer = any(word in user_input for word in ["建议", "检查", "优化", "评价"])
+            await orchestrator.run_inference(session_data, force=should_infer)
+            response_text = await orchestrator.get_response(session_data, intents)
+            
         session_manager.save_session(session_id, session_data)
         
         return {
@@ -55,31 +64,47 @@ async def chat_stream(message: str, session_id: str = "default_session"):
             })
 
         try:
-            yield {"data": json.dumps({"type": "status", "content": "正在分析您的意图..."})}
-            plan = await orchestrator.plan_and_route(message, session_data)
-            intents = plan["intents"]
-            route_result = plan["route_result"]
-            
-            if session_data.get("pending_questions"):
-                yield {"data": json.dumps({
-                    "type": "status",
-                    "content": "发现待补充信息，请确认/补充",
-                    "pending_questions": session_data.get("pending_questions", [])
-                })}
+            yield {"data": json.dumps({"type": "status", "content": "🔍 正在分析您的意图..."})}
+            route_result = await orchestrator.route_request(message, session_data)
+            intents = route_result.get("intents", ["chat"])
+            orchestrator.update_slots(route_result, session_data)
             
             yield {"data": json.dumps({
                 "type": "status", 
-                "content": f"识别到意图: {', '.join(intents)}",
+                "content": f"✅ 识别到意图: {', '.join(intents)}",
                 "debug": {
                     "agent": "Router",
                     "model": router.last_model,
                     "duration": f"{router.last_duration:.2f}s"
                 }
             })}
+
+            # 优化：如果是纯闲聊，直接进入汇总
+            if len(intents) == 1 and intents[0] == "chat":
+                yield {"data": json.dumps({"type": "status", "content": "💬 正在组织语言回复您..."})}
+                response_text = await orchestrator.get_response(session_data, intents)
+                yield {"data": json.dumps({
+                    "type": "final", 
+                    "content": response_text,
+                    "debug": {
+                        "agent": "Aggregator",
+                        "model": aggregator.last_model,
+                        "duration": f"{aggregator.last_duration:.2f}s"
+                    }
+                })}
+                return
+
+            if session_data.get("pending_questions"):
+                yield {"data": json.dumps({
+                    "type": "status",
+                    "content": "💡 发现待补充信息，我将在回复中提醒您",
+                    "pending_questions": session_data.get("pending_questions", [])
+                })}
+            
             yield {"data": json.dumps({"type": "partial", "content": route_result})}
             
-            yield {"data": json.dumps({"type": "status", "content": f"正在由 {', '.join(intents)} 专家并发处理..."})}
-            workers_task = asyncio.create_task(orchestrator.execute_workers(intents, message, session_data, on_tool_call=tool_callback))
+            yield {"data": json.dumps({"type": "status", "content": f"🛠️ 正在由 {', '.join(intents)} 专家提取信息..."})}
+            workers_task = asyncio.create_task(orchestrator.run_workers(intents, message, session_data, on_tool_call=tool_callback))
             
             while not workers_task.done():
                 while not event_queue.empty():
@@ -111,20 +136,26 @@ async def chat_stream(message: str, session_id: str = "default_session"):
                     "debug": {"agent": worker.__class__.__name__}
                 })}
             
-            yield {"data": json.dumps({"type": "status", "content": "正在进行常识校验与职业推理..."})}
-            await orchestrator.infer_and_verify(session_data)
-            yield {"data": json.dumps({
-                "type": "status",
-                "content": "常识校验完成",
-                "debug": {
-                    "agent": "InferenceWorker",
-                    "model": inference_worker.last_model,
-                    "duration": f"{inference_worker.last_duration:.2f}s"
-                }
-            })}
+            # 优化：默认跳过耗时的推理，除非用户明确要求
+            should_infer = any(word in message for word in ["建议", "检查", "优化", "评价"])
+            if should_infer:
+                yield {"data": json.dumps({"type": "status", "content": "🧠 正在进行深度职业推理..."})}
+                await orchestrator.run_inference(session_data, force=True)
+                yield {"data": json.dumps({
+                    "type": "status",
+                    "content": "✅ 推理完成",
+                    "debug": {
+                        "agent": "InferenceWorker",
+                        "model": inference_worker.last_model,
+                        "duration": f"{inference_worker.last_duration:.2f}s"
+                    }
+                })}
+            else:
+                # 异步更新，不阻塞主流程（或者直接跳过）
+                yield {"data": json.dumps({"type": "status", "content": "⏩ 跳过深度推理以加速响应"})}
 
-            yield {"data": json.dumps({"type": "status", "content": "正在生成回复..."})}
-            response_text = await orchestrator.summarize_response(session_data, intents)
+            yield {"data": json.dumps({"type": "status", "content": "✍️ 正在组织语言回复您..."})}
+            response_text = await orchestrator.get_response(session_data, intents)
             session_manager.save_session(session_id, session_data)
             
             yield {"data": json.dumps({

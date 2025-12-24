@@ -1,7 +1,7 @@
 """简历生成 Agent 包结构定义。"""
 
-from .planner import Planner
+from .router import Router
 from .executor import Executor
-from .tooling import Tooling
+from .orchestrator import Orchestrator
 
-__all__ = ["Planner", "Executor", "Tooling"]
+__all__ = ["Router", "Executor", "Orchestrator"]

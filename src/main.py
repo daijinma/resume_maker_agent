@@ -4,13 +4,11 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from src.api.endpoints import api_router
+from src.api.routes import api_router
+from src.utils.logger import setup_logger
 
 # 初始化日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+setup_logger("resume-api", logging.INFO)
 logger = logging.getLogger("resume-api")
 
 app = FastAPI(title="Chat-to-Resume Multi-Agent API")

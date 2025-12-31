@@ -12,6 +12,7 @@ dependencies = [
     "langchain",
     "langchain-openai",
     "jinja2>=3.1.6",
+    "asyncpg>=0.29.0",  # PostgreSQL 異步驅動（用於雙軌架構）
 ]
 
 [tool.uv]

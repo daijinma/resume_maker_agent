@@ -1,6 +1,6 @@
 """
 统一的会话管理服务
-支持 JSON 和 PostgreSQL 两种存储方式
+使用 PostgreSQL 数据库存储
 """
 import json
 import logging
@@ -9,7 +9,6 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 import asyncpg
 from src.config.database import DatabaseConfig
-from src.config.settings import Settings
 
 logger = logging.getLogger("service.session")
 
@@ -34,50 +33,6 @@ def _write_debug_log(data: dict):
     except Exception as e:
         logger.debug(f"Debug log write failed: {e}")
 # #endregion
-
-
-class JSONSessionStorage:
-    """JSON 文件存储"""
-    
-    def __init__(self, storage_path: str):
-        self.storage_path = storage_path
-        self.sessions: Dict[str, Any] = self._load_sessions()
-    
-    def _load_sessions(self) -> Dict[str, Any]:
-        import os
-        if os.path.exists(self.storage_path):
-            try:
-                with open(self.storage_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception as e:
-                logger.error(f"加载会话文件失败: {e}")
-        return {}
-    
-    def get_session(self, session_id: str) -> Dict[str, Any]:
-        if session_id not in self.sessions:
-            self.sessions[session_id] = {
-                "resume_data": {
-                    "personal_info": {},
-                    "education": [],
-                    "experience": [],
-                    "skills": []
-                },
-                "history": [],
-                "pending_questions": []
-            }
-        return self.sessions[session_id]
-    
-    def save_session(self, session_id: str, data: Dict[str, Any]):
-        if hasattr(data, "__dict__"):
-            self.sessions[session_id] = data.__dict__
-        else:
-            self.sessions[session_id] = data
-        
-        try:
-            with open(self.storage_path, "w", encoding="utf-8") as f:
-                json.dump(self.sessions, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            logger.error(f"保存会话文件失败: {e}")
 
 
 class DBSessionStorage:
@@ -589,7 +544,7 @@ class DBSessionStorage:
             """, json.dumps(history), session_id)
     
     async def get_history(self, session_id: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """获取对话历史"""
+        """获取对话历史（返回最近的记录）"""
         await self.initialize()
         # 确保表存在（额外安全检查）
         await self._ensure_tables_exist()
@@ -599,7 +554,7 @@ class DBSessionStorage:
                 SELECT role, content, agent_type, created_at
                 FROM conversation_history
                 WHERE session_id = $1
-                ORDER BY created_at ASC
+                ORDER BY created_at DESC
             """
             params = [session_id]
             
@@ -608,6 +563,9 @@ class DBSessionStorage:
                 params.append(limit)
             
             rows = await conn.fetch(query, *params)
+            
+            # 反转顺序，使最早的在前（保持对话顺序）
+            rows = list(reversed(rows))
             
             return [
                 {
@@ -706,102 +664,82 @@ class DBSessionStorage:
 
 
 class SessionService:
-    """统一的会话管理服务"""
+    """统一的会话管理服务（使用数据库存储）"""
     
-    def __init__(self, use_database: Optional[bool] = None):
-        """
-        初始化会话服务
-        
-        Args:
-            use_database: 是否使用数据库，None 则从配置读取
-        """
-        self.use_database = use_database if use_database is not None else Settings.USE_DATABASE
-        
-        if self.use_database:
-            self.storage = DBSessionStorage()
-        else:
-            self.storage = JSONSessionStorage(Settings.SESSION_STORAGE_PATH)
+    def __init__(self):
+        """初始化会话服务"""
+        self.storage = DBSessionStorage()
     
     async def get_session(self, session_id: str) -> Dict[str, Any]:
         """获取会话数据"""
-        if self.use_database:
-            return await self.storage.get_session(session_id)
-        else:
-            return self.storage.get_session(session_id)
+        return await self.storage.get_session(session_id)
     
     async def save_session(self, session_id: str, data: Dict[str, Any]):
         """保存会话数据"""
-        if self.use_database:
-            await self.storage.save_session(session_id, data)
-        else:
-            self.storage.save_session(session_id, data)
+        await self.storage.save_session(session_id, data)
     
     async def add_message(self, session_id: str, role: str, content: str, agent_type: str):
         """添加消息到对话历史"""
-        if self.use_database:
-            await self.storage.add_message(session_id, role, content, agent_type)
-        else:
-            # JSON 模式：直接更新 history 字段
-            session_data = await self.get_session(session_id)
-            history = session_data.get("history", [])
-            history.append({
-                "role": role,
-                "content": content,
-                "agent_type": agent_type,
-                "timestamp": datetime.now().isoformat()
-            })
-            session_data["history"] = history
-            await self.save_session(session_id, session_data)
+        await self.storage.add_message(session_id, role, content, agent_type)
     
     async def get_history(self, session_id: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """获取对话历史"""
-        if self.use_database:
-            return await self.storage.get_history(session_id, limit)
-        else:
-            session_data = await self.get_session(session_id)
-            history = session_data.get("history", [])
-            if limit:
-                return history[-limit:]
-            return history
+        return await self.storage.get_history(session_id, limit)
     
     async def get_pending_questions(self, session_id: str, limit: int = 1) -> List[Dict[str, Any]]:
-        """获取待提问的问题（仅数据库模式）"""
-        if self.use_database:
-            return await self.storage.get_pending_questions(session_id, limit)
-        else:
-            session_data = await self.get_session(session_id)
-            pending = session_data.get("pending_questions", [])
-            return [{"id": f"q_{i}", "content": q} for i, q in enumerate(pending[:limit])]
+        """获取待提问的问题"""
+        return await self.storage.get_pending_questions(session_id, limit)
     
     async def mark_question_answered(self, session_id: str, question_id: str):
-        """标记问题为已回答（仅数据库模式）"""
-        if self.use_database:
-            await self.storage.mark_question_answered(session_id, question_id)
+        """标记问题为已回答"""
+        await self.storage.mark_question_answered(session_id, question_id)
     
     async def initialize(self):
-        """初始化（仅数据库模式）"""
-        if self.use_database and hasattr(self.storage, 'initialize'):
-            await self.storage.initialize()
+        """初始化数据库连接"""
+        await self.storage.initialize()
+    
+    async def get_question_queue(self, session_id: str) -> Dict[str, Any]:
+        """获取问题队列数据"""
+        await self.storage.initialize()
+        session_data = await self.storage.get_session(session_id)
+        return session_data.get("question_queue", {"questions": [], "answered": []})
     
     async def save_question_queue(self, session_id: str, question_queue_data: Dict[str, Any]):
-        """保存问题队列（仅数据库模式）"""
-        if self.use_database and hasattr(self.storage, 'save_question_queue'):
-            await self.storage.save_question_queue(session_id, question_queue_data)
-        elif self.use_database:
-            # 如果 storage 没有 save_question_queue 方法，直接更新会话数据
-            session_data = await self.get_session(session_id)
-            session_data["question_queue"] = question_queue_data
-            await self.save_session(session_id, session_data)
-    
-    async def initialize(self):
-        """初始化（仅数据库模式）"""
-        if self.use_database and hasattr(self.storage, 'initialize'):
-            await self.storage.initialize()
+        """保存问题队列"""
+        await self.storage.save_question_queue(session_id, question_queue_data)
     
     async def close(self):
-        """关闭连接（仅数据库模式）"""
-        if self.use_database and hasattr(self.storage, 'close'):
-            await self.storage.close()
+        """关闭数据库连接"""
+        await self.storage.close()
+    
+    async def list_sessions(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """获取所有会话列表（按创建时间倒序）"""
+        await self.storage.initialize()
+        await self.storage._ensure_tables_exist()
+        
+        async with self.storage.pool.acquire() as conn:
+            query = """
+                SELECT session_id, agent_type, created_at, updated_at
+                FROM sessions
+                ORDER BY created_at DESC
+            """
+            params = []
+            
+            if limit:
+                query += " LIMIT $1"
+                params.append(limit)
+            
+            rows = await conn.fetch(query, *params)
+            
+            return [
+                {
+                    "session_id": row["session_id"],
+                    "agent_type": row["agent_type"] or "planner_worker",
+                    "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                    "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None
+                }
+                for row in rows
+            ]
     
     async def get_session_token_summary(self, session_id: str) -> Dict[str, Any]:
         """

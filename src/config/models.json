@@ -1,0 +1,163 @@
+{
+  "openrouter": {
+    "api_key": "${OPENROUTER_API_KEY}",
+    "base_url": "https://openrouter.ai/api/v1",
+    "default_headers": {
+    }
+  },
+  "agents": {
+    "planner": {
+      "models": [
+        "meta-llama/llama-3.2-3b-instruct:free",
+        "qwen/qwen3-4b:free",
+        "google/gemma-3-4b-it:free",
+        "google/gemma-3n-e4b-it:free",
+        "google/gemma-3n-e2b-it:free",
+        "mistralai/mistral-7b-instruct:free",
+        "nvidia/nemotron-nano-9b-v2:free",
+        "openai/gpt-oss-20b:free"
+      ],
+      "temperature": 0.3,
+      "max_tokens": 4096,
+      "timeout": 30.0
+    },
+    "info_worker": {
+      "models": [
+        "mistralai/mistral-small-3.1-24b-instruct:free",
+        "meta-llama/llama-3.2-3b-instruct:free",
+        "qwen/qwen3-4b:free",
+        "xiaomi/mimo-v2-flash:free",
+        "mistralai/devstral-2512:free",
+        "nvidia/nemotron-3-nano-30b-a3b:free",
+        "alibaba/tongyi-deepresearch-30b-a3b:free",
+        "nvidia/nemotron-nano-9b-v2:free",
+        "nvidia/nemotron-nano-12b-v2-vl:free",
+        "google/gemma-3-12b-it:free",
+        "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
+        "openai/gpt-oss-20b:free"
+      ],
+      "temperature": 0.3,
+      "max_tokens": 4096,
+      "timeout": 30.0
+    },
+    "experience_worker": {
+      "models": [
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "mistralai/mistral-small-3.1-24b-instruct:free",
+        "meta-llama/llama-3.1-405b-instruct:free",
+        "nousresearch/hermes-3-llama-3.1-405b:free",
+        "openai/gpt-oss-120b:free",
+        "google/gemma-3-27b-it:free",
+        "allenai/olmo-3.1-32b-think:free",
+        "allenai/olmo-3-32b-think:free",
+        "nvidia/nemotron-3-nano-30b-a3b:free",
+        "alibaba/tongyi-deepresearch-30b-a3b:free",
+        "xiaomi/mimo-v2-flash:free",
+        "mistralai/devstral-2512:free"
+      ],
+      "temperature": 0.3,
+      "max_tokens": 8192,
+      "timeout": 60.0
+    },
+    "skill_worker": {
+      "models": [
+        "mistralai/mistral-small-3.1-24b-instruct:free",
+        "qwen/qwen3-4b:free",
+        "meta-llama/llama-3.2-3b-instruct:free",
+        "google/gemma-3-4b-it:free",
+        "nvidia/nemotron-nano-9b-v2:free",
+        "google/gemma-3-12b-it:free",
+        "mistralai/mistral-7b-instruct:free",
+        "openai/gpt-oss-20b:free",
+        "cognitivecomputations/dolphin-mistral-24b-venice-edition:free"
+      ],
+      "temperature": 0.3,
+      "max_tokens": 4096,
+      "timeout": 30.0
+    },
+    "education_worker": {
+      "models": [
+        "mistralai/mistral-small-3.1-24b-instruct:free",
+        "qwen/qwen3-4b:free",
+        "meta-llama/llama-3.2-3b-instruct:free",
+        "google/gemma-3-4b-it:free",
+        "nvidia/nemotron-nano-9b-v2:free",
+        "google/gemma-3-12b-it:free",
+        "mistralai/mistral-7b-instruct:free",
+        "openai/gpt-oss-20b:free",
+        "cognitivecomputations/dolphin-mistral-24b-venice-edition:free"
+      ],
+      "temperature": 0.3,
+      "max_tokens": 4096,
+      "timeout": 30.0
+    },
+    "inference": {
+      "models": [
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "mistralai/mistral-small-3.1-24b-instruct:free",
+        "meta-llama/llama-3.1-405b-instruct:free",
+        "nousresearch/hermes-3-llama-3.1-405b:free",
+        "openai/gpt-oss-120b:free",
+        "allenai/olmo-3.1-32b-think:free",
+        "allenai/olmo-3-32b-think:free",
+        "nvidia/nemotron-3-nano-30b-a3b:free",
+        "alibaba/tongyi-deepresearch-30b-a3b:free",
+        "google/gemma-3-27b-it:free",
+        "xiaomi/mimo-v2-flash:free",
+        "mistralai/devstral-2512:free",
+        "nex-agi/deepseek-v3.1-nex-n1:free",
+        "arcee-ai/trinity-mini:free"
+      ],
+      "temperature": 0.3,
+      "max_tokens": 8192,
+      "timeout": 60.0
+    },
+    "aggregator": {
+      "models": [
+        "meta-llama/llama-3.2-3b-instruct:free",
+        "qwen/qwen3-4b:free",
+        "google/gemma-3-4b-it:free",
+        "google/gemma-3n-e4b-it:free",
+        "mistralai/mistral-7b-instruct:free",
+        "nvidia/nemotron-nano-9b-v2:free",
+        "openai/gpt-oss-20b:free",
+        "z-ai/glm-4.5-air:free"
+      ],
+      "temperature": 0.3,
+      "max_tokens": 4096,
+      "timeout": 30.0
+    },
+    "fast_response": {
+      "models": [
+        "qwen/qwen3-4b:free",
+        "meta-llama/llama-3.2-3b-instruct:free",
+        "google/gemma-3-4b-it:free",
+        "google/gemma-3n-e4b-it:free",
+        "google/gemma-3n-e2b-it:free",
+        "mistralai/mistral-7b-instruct:free",
+        "nvidia/nemotron-nano-9b-v2:free",
+        "openai/gpt-oss-20b:free"
+      ],
+      "temperature": 0.3,
+      "max_tokens": 2048,
+      "timeout": 20.0
+    },
+    "side_router": {
+      "models": [
+        "qwen/qwen3-4b:free",
+        "meta-llama/llama-3.2-3b-instruct:free",
+        "google/gemma-3-4b-it:free",
+        "google/gemma-3n-e4b-it:free",
+        "google/gemma-3n-e2b-it:free",
+        "mistralai/mistral-7b-instruct:free",
+        "nvidia/nemotron-nano-9b-v2:free",
+        "openai/gpt-oss-20b:free",
+        "z-ai/glm-4.5-air:free"
+      ],
+      "temperature": 0.3,
+      "max_tokens": 1024,
+      "timeout": 15.0
+    }
+  }
+}
+

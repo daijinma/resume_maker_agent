@@ -4,19 +4,19 @@ from src.agents.unified_worker import UnifiedWorker
 from src.config.models import ModelConfig
 from src.config.field_definitions import FIELD_DEFINITIONS
 
-logger = logging.getLogger("resume-agent.workers.info")
+logger = logging.getLogger("resume-agent.workers.education")
 
 
-class InfoWorker(UnifiedWorker):
-    """个人信息处理 Worker"""
+class EducationWorker(UnifiedWorker):
+    """教育背景处理 Worker"""
     
     def __init__(self):
-        config = ModelConfig.get_model_config("info_worker")
-        field_defs = FIELD_DEFINITIONS["info_worker"]
+        config = ModelConfig.get_model_config("education_worker")
+        field_defs = FIELD_DEFINITIONS["education_worker"]
         super().__init__(
-            worker_type="info",
+            worker_type="education",
             models=config["models"],
-            prompt_name="info_worker",
+            prompt_name="education_worker",
             field_definitions=field_defs,
             tools=[],
             temperature=config.get("temperature", 0.3),
@@ -31,7 +31,7 @@ class InfoWorker(UnifiedWorker):
         current_data: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        后处理：本地 Python 逻辑处理日期预测，代替 LLM 工具调用
+        后处理：本地 Python 逻辑处理日期预测
         """
         # 优化：本地 Python 逻辑处理日期预测，代替 LLM 工具调用
         if "education" in extracted_data and isinstance(extracted_data["education"], list):
@@ -47,3 +47,4 @@ class InfoWorker(UnifiedWorker):
                         logger.info(f"本地预测教育时间: {edu['duration']}")
         
         return extracted_data
+

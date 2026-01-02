@@ -1,20 +1,26 @@
-import json
 import logging
-from typing import Dict, Any
-from src.agents.base import BaseAgent, time_it
+from src.agents.unified_worker import UnifiedWorker
 from src.agents.tools import RESUME_TOOLS
 from src.config.models import ModelConfig
+from src.config.field_definitions import FIELD_DEFINITIONS
 
 logger = logging.getLogger("resume-agent.workers.experience")
 
-class ExperienceWorker(BaseAgent):
-    def __init__(self):
-        super().__init__(model=ModelConfig.MODEL_EXP_WORKER, tools=RESUME_TOOLS)
 
-    @time_it
-    async def process(self, user_input: str, current_data: Dict[str, Any], on_tool_call=None, session_id: str = None) -> Dict[str, Any]:
-        system_prompt = self.load_prompt("experience_worker")
-        from datetime import datetime
-        current_date = datetime.now().strftime("%Y-%m-%d")
-        user_prompt = f"当前日期: {current_date}\n用户输入: {user_input}\n当前数据: {json.dumps(current_data, ensure_ascii=False)}"
-        return await self.run_chain(system_prompt, user_prompt, on_tool_call=on_tool_call, session_id=session_id)
+class ExperienceWorker(UnifiedWorker):
+    """工作经历处理 Worker"""
+    
+    def __init__(self):
+        config = ModelConfig.get_model_config("experience_worker")
+        field_defs = FIELD_DEFINITIONS["experience_worker"]
+        super().__init__(
+            worker_type="experience",
+            models=config["models"],
+            prompt_name="experience_worker",
+            field_definitions=field_defs,
+            tools=RESUME_TOOLS,
+            temperature=config.get("temperature", 0.3),
+            max_tokens=config.get("max_tokens"),
+            timeout=config.get("timeout"),
+            initial_model_index=config.get("initial_model_index")
+        )

@@ -7,19 +7,41 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .json-block {
-            background-color: #f4f4f9;
-            border-left: 4px solid #4f46e5;
-            padding: 1rem;
-            border-radius: 0.5rem;
+            background-color: #f9fafb;
+            border-left: 2px solid #d1d5db;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
             font-family: monospace;
             white-space: pre-wrap;
-            margin: 0.5rem 0;
+            margin: 0.25rem 0;
+            font-size: 0.7rem;
+            color: #6b7280;
+            opacity: 0.7;
         }
         .debug-info {
-            font-size: 0.75rem;
-            color: #6b7280;
+            font-size: 0.65rem;
+            color: #9ca3af;
             margin-top: 0.25rem;
             font-style: italic;
+            opacity: 0.8;
+        }
+        .log-message {
+            font-size: 0.75rem;
+            color: #4b5563;
+            opacity: 1;
+            border-left: 2px solid #6366f1;
+            padding: 0.5rem 0.75rem;
+            margin: 0.5rem 0;
+            background-color: #f3f4f6;
+            border-radius: 0.25rem;
+        }
+        .timer-log {
+            font-size: 0.75rem;
+            color: #4f46e5;
+            font-weight: 500;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 0.75rem;
+            margin-top: 0.75rem;
         }
         .message-user {
             background-color: #e0e7ff;
@@ -68,15 +90,47 @@
                     </svg>
                 </button>
             </div>
-            <button id="new-session-btn" 
-                class="w-full bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition text-sm font-medium">
-                + 新建会话
-            </button>
+            <div class="flex space-x-2">
+                <button id="new-session-btn" 
+                    class="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition text-sm font-medium">
+                    + 新建会话
+                </button>
+                <button id="refresh-btn" 
+                    class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition text-sm font-medium"
+                    title="刷新当前会话的统计信息">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                </button>
+            </div>
         </div>
         
         <!-- Session List -->
-        <div id="session-list" class="flex-1 overflow-y-auto p-2">
+        <div id="session-list" class="flex-1 overflow-y-auto p-2 min-h-0">
             <!-- Sessions will be dynamically added here -->
+        </div>
+        
+        <!-- Todo List (Pending Questions) -->
+        <div id="todo-container" class="bg-amber-50 border-t border-amber-200 flex flex-col hidden" style="max-height: 40%; min-height: 200px;">
+            <div class="p-3 border-b border-amber-200 flex-shrink-0">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-semibold text-amber-800 flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                        </svg>
+                        待办事项
+                    </h3>
+                    <button id="todo-toggle" class="text-amber-600 hover:text-amber-800 text-xs flex items-center">
+                        <span id="todo-toggle-text">收起</span>
+                        <svg class="w-4 h-4 inline-block ml-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <ul id="todo-list" class="flex-1 overflow-y-auto p-2 space-y-2 text-sm text-amber-900 min-h-0">
+                <!-- Todo items will be dynamically added here -->
+            </ul>
         </div>
     </aside>
 
@@ -84,8 +138,7 @@
     <div class="flex-1 flex flex-col h-screen overflow-hidden">
         <!-- Header -->
         <header class="bg-white shadow-sm p-4 border-b border-gray-200">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-4">
+                <div>
                     <button id="sidebar-toggle-mobile" class="md:hidden text-gray-500 hover:text-gray-700">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
@@ -93,15 +146,22 @@
                     </button>
                     <h1 class="text-xl font-bold text-gray-800">Resume Agent 可视化调试终端</h1>
                 </div>
-                <div class="flex items-center space-x-4">
-                    <label for="agent-select" class="text-sm text-gray-600">選擇 Agent:</label>
-                    <select id="agent-select" 
-                        class="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <option value="planner_worker">經典架構 (Planner-Worker)</option>
-                        <option value="dual_track">雙軌架構 (Dual Track)</option>
-                    </select>
+                <div class="block mt-2">
+                    <div class="inline-block space-x-2">
+                        <input type="text" id="session-id-input" 
+                            class="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64"
+                            placeholder="输入或粘贴 session_id" readonly disabled>
+                    </div>
+                    <div class="inline-block space-x-2 ml-10">
+                        <label for="agent-select" class="text-sm text-gray-600">選擇 Agent:</label>
+                        <select id="agent-select" 
+                            class="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="planner_worker">經典架構 (Planner-Worker)</option>
+                            <option value="dual_track">雙軌架構 (Dual Track)</option>
+                        </select>
+                    </div>
+                   
                 </div>
-            </div>
         </header>
 
         <!-- Chat Container -->
@@ -123,493 +183,6 @@
         </footer>
     </div>
 
-    <script>
-        const chatContainer = document.getElementById('chat-container');
-        const userInput = document.getElementById('user-input');
-        const sendBtn = document.getElementById('send-btn');
-        const agentSelect = document.getElementById('agent-select');
-        const sessionList = document.getElementById('session-list');
-        const newSessionBtn = document.getElementById('new-session-btn');
-        const sidebarToggle = document.getElementById('sidebar-toggle');
-        const sidebarToggleMobile = document.getElementById('sidebar-toggle-mobile');
-        const sidebar = document.getElementById('sidebar');
-        
-        let sessionId = 'debug_session_' + Math.random().toString(36).substring(2, 15);
-        let currentEventSource = null;
-        let startTime = null;
-        let timerInterval = null;
-        let currentAgentType = 'planner_worker';  // 當前選擇的 agent 類型
-        let sessions = {};  // 存储会话数据 {session_id: {token_stats, pending_questions, last_updated}}
-        
-        // Token 格式化函数（详细+紧凑格式）
-        function formatToken(count) {
-            if (count === 0) return '0';
-            if (count < 1000) return count.toString();
-            if (count < 1000000) {
-                const k = (count / 1000).toFixed(1);
-                return k.endsWith('.0') ? k.slice(0, -2) + 'K' : k + 'K';
-            }
-            const m = (count / 1000000).toFixed(1);
-            return m.endsWith('.0') ? m.slice(0, -2) + 'M' : m + 'M';
-        }
-        
-        // 格式化时间
-        function formatTime(dateString) {
-            if (!dateString) return '刚刚';
-            const date = new Date(dateString);
-            const now = new Date();
-            const diff = now - date;
-            const minutes = Math.floor(diff / 60000);
-            if (minutes < 1) return '刚刚';
-            if (minutes < 60) return `${minutes}分钟前`;
-            const hours = Math.floor(minutes / 60);
-            if (hours < 24) return `${hours}小时前`;
-            const days = Math.floor(hours / 24);
-            if (days < 7) return `${days}天前`;
-            return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
-        }
-        
-        // 创建会话项 HTML
-        function createSessionItem(sessId, sessionData) {
-            const isActive = sessId === sessionId;
-            const tokenStats = sessionData?.token_stats || { input_tokens: 0, output_tokens: 0, total_tokens: 0 };
-            const pendingCount = sessionData?.pending_questions?.length || 0;
-            const lastUpdated = sessionData?.last_updated || new Date().toISOString();
-            
-            const item = document.createElement('div');
-            item.className = `session-item p-3 mb-2 rounded-lg cursor-pointer border border-gray-200 ${isActive ? 'active' : ''}`;
-            item.dataset.sessionId = sessId;
-            
-            const shortId = sessId.length > 20 ? sessId.substring(0, 20) + '...' : sessId;
-            
-            item.innerHTML = `
-                <div class="flex items-start justify-between mb-2">
-                    <div class="flex-1 min-w-0">
-                        <div class="font-medium text-sm text-gray-800 truncate" title="${sessId}">${shortId}</div>
-                        <div class="text-xs text-gray-500 mt-1">${formatTime(lastUpdated)}</div>
-                    </div>
-                </div>
-                <div class="space-y-1">
-                    <div class="text-xs text-gray-600">
-                        <span class="font-medium">Token:</span> 
-                        <span class="text-indigo-600">${formatToken(tokenStats.input_tokens)} / ${formatToken(tokenStats.output_tokens)} / ${formatToken(tokenStats.total_tokens)}</span>
-                    </div>
-                    ${pendingCount > 0 ? `
-                        <div class="text-xs text-amber-600 flex items-center">
-                            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
-                            </svg>
-                            ${pendingCount} 个待办
-                        </div>
-                    ` : ''}
-                </div>
-            `;
-            
-            item.onclick = () => switchSession(sessId);
-            return item;
-        }
-        
-        // 更新会话列表显示
-        function updateSessionList() {
-            sessionList.innerHTML = '';
-            const sessionIds = Object.keys(sessions).sort((a, b) => {
-                const timeA = sessions[a]?.last_updated || '';
-                const timeB = sessions[b]?.last_updated || '';
-                return timeB.localeCompare(timeA);
-            });
-            
-            // 确保当前会话在列表中
-            if (!sessions[sessionId]) {
-                sessions[sessionId] = {
-                    token_stats: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
-                    pending_questions: [],
-                    last_updated: new Date().toISOString()
-                };
-            }
-            
-            if (!sessionIds.includes(sessionId)) {
-                sessionIds.unshift(sessionId);
-            }
-            
-            sessionIds.forEach(sessId => {
-                const item = createSessionItem(sessId, sessions[sessId]);
-                sessionList.appendChild(item);
-            });
-        }
-        
-        // 切换会话
-        function switchSession(newSessionId) {
-            if (newSessionId === sessionId) return;
-            
-            sessionId = newSessionId;
-            chatContainer.innerHTML = '';
-            
-            // 更新会话列表高亮
-            updateSessionList();
-            
-            // 加载新会话的历史记录（可选）
-            loadSessionHistory(newSessionId);
-        }
-        
-        // 创建新会话
-        function createNewSession() {
-            sessionId = 'debug_session_' + Math.random().toString(36).substring(2, 15);
-            sessions[sessionId] = {
-                token_stats: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
-                pending_questions: [],
-                last_updated: new Date().toISOString()
-            };
-            chatContainer.innerHTML = '';
-            updateSessionList();
-        }
-        
-        // 加载会话历史（可选功能）
-        async function loadSessionHistory(sessId) {
-            try {
-                const response = await fetch('/stream', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        action: 'history',
-                        session_id: sessId,
-                        limit: 50
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer = '';
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop() || '';
-
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            try {
-                                const data = JSON.parse(line.slice(6));
-                                if (data.type === 'final' && data.history) {
-                                    data.history.forEach(msg => {
-                                        appendMessage(msg.role, msg.content, false, null);
-                                    });
-                                } else if (data.type === 'error') {
-                                    console.error('加载历史失败:', data.content);
-                                }
-                            } catch (e) {
-                                console.error('解析 SSE 数据失败:', e);
-                            }
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error('加载会话历史失败:', error);
-            }
-        }
-        
-        // 获取会话 token 统计
-        async function fetchSessionTokenStats(sessId) {
-            try {
-                const response = await fetch('/stream', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        action: 'token_stats',
-                        session_id: sessId
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer = '';
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop() || '';
-
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            try {
-                                const data = JSON.parse(line.slice(6));
-                                if (data.type === 'final' && data.total) {
-                                    if (!sessions[sessId]) {
-                                        sessions[sessId] = {};
-                                    }
-                                    sessions[sessId].token_stats = data.total;
-                                    sessions[sessId].last_updated = new Date().toISOString();
-                                    updateSessionList();
-                                } else if (data.type === 'error') {
-                                    console.error('获取 token 统计失败:', data.content);
-                                }
-                            } catch (e) {
-                                console.error('解析 SSE 数据失败:', e);
-                            }
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error('获取 token 统计失败:', error);
-            }
-        }
-        
-        // 更新会话的待办事项
-        function updateSessionPendingQuestions(sessId, pendingQuestions) {
-            if (!sessions[sessId]) {
-                sessions[sessId] = {
-                    token_stats: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
-                    pending_questions: [],
-                    last_updated: new Date().toISOString()
-                };
-            }
-            sessions[sessId].pending_questions = Array.isArray(pendingQuestions) ? pendingQuestions : [];
-            sessions[sessId].last_updated = new Date().toISOString();
-            updateSessionList();
-        }
-        
-        // 侧边栏切换
-        function toggleSidebar() {
-            sidebar.classList.toggle('open');
-        }
-        
-        // 初始化
-        function init() {
-            // 初始化当前会话
-            sessions[sessionId] = {
-                token_stats: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
-                pending_questions: [],
-                last_updated: new Date().toISOString()
-            };
-            updateSessionList();
-            
-            // 绑定事件
-            newSessionBtn.addEventListener('click', createNewSession);
-            sidebarToggle?.addEventListener('click', toggleSidebar);
-            sidebarToggleMobile?.addEventListener('click', toggleSidebar);
-        }
-        
-        // 页面加载时初始化
-        init();
-
-        function appendMessage(role, content, isJson = false, debug = null, messageId = null) {
-            const div = document.createElement('div');
-            
-            // 优化：状态消息使用更紧凑的样式
-            if (role === 'agent' && !isJson && !debug && content.startsWith('---')) {
-                div.className = 'text-center text-xs text-gray-400 my-2';
-                div.textContent = content;
-                chatContainer.appendChild(div);
-                chatContainer.scrollTop = chatContainer.scrollHeight;
-                return;
-            }
-
-            div.className = `p-3 rounded-lg relative group ${role === 'user' ? 'message-user max-w-[80%]' : 'message-agent w-full'}`;
-            
-            // 优化：如果是状态更新，使用不同的背景色
-            if (role === 'agent' && !isJson && !debug) {
-                div.classList.add('bg-blue-50', 'border-blue-100', 'text-blue-700', 'text-sm');
-            }
-
-            if (messageId) div.dataset.messageId = messageId;
-            
-            if (isJson) {
-                const pre = document.createElement('pre');
-                pre.className = 'json-block text-sm overflow-x-auto';
-                pre.textContent = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
-                div.appendChild(pre);
-            } else {
-                const textSpan = document.createElement('span');
-                textSpan.textContent = content;
-                div.appendChild(textSpan);
-            }
-
-            if (debug && debug.model) {
-                const debugDiv = document.createElement('div');
-                debugDiv.className = 'debug-info';
-                debugDiv.textContent = `[${debug.agent}] 模型: ${debug.model} | 耗时: ${debug.duration}`;
-                div.appendChild(debugDiv);
-            }
-
-            // 为用户消息增加重试按钮
-            if (role === 'user') {
-                const retryBtn = document.createElement('button');
-                retryBtn.className = 'absolute -left-10 top-1/2 -translate-y-1/2 hidden group-hover:block p-1 text-gray-400 hover:text-indigo-600 transition';
-                retryBtn.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
-                    </svg>
-                `;
-                retryBtn.title = '重试此消息';
-                retryBtn.onclick = () => {
-                    if (currentEventSource) {
-                        currentEventSource.close();
-                        appendMessage('agent', '--- 已中断当前请求，正在重试 ---');
-                    }
-                    startChat(content);
-                };
-                div.appendChild(retryBtn);
-            }
-            
-            chatContainer.appendChild(div);
-            
-            // 确保计时器始终在最底部
-            const existingTimer = document.getElementById('current-timer');
-            if (existingTimer) {
-                chatContainer.appendChild(existingTimer);
-            }
-            
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-
-        async function sendMessage() {
-            const message = userInput.value.trim();
-            if (!message) return;
-            userInput.value = '';
-            currentAgentType = agentSelect.value;  // 獲取當前選擇的 agent 類型
-            appendMessage('user', message);
-            
-            // 顯示當前使用的 agent 類型
-            appendMessage('agent', `--- 使用 ${currentAgentType === 'planner_worker' ? '經典架構 (Planner-Worker)' : '雙軌架構 (Dual Track)'} 處理中 ---`);
-            
-            // 統一使用流式接口
-            await startChatStream(message);
-        }
-        
-        async function startChatStream(message) {
-            if (currentEventSource) {
-                currentEventSource.close();
-            }
-            if (timerInterval) {
-                clearInterval(timerInterval);
-            }
-
-            startTime = Date.now();
-            
-            // 创建计时器显示区域
-            const timerDiv = document.createElement('div');
-            timerDiv.className = 'text-center text-sm font-bold text-indigo-500 my-4 p-2 bg-indigo-50 rounded-lg border border-indigo-100 animate-pulse';
-            timerDiv.id = 'current-timer';
-            timerDiv.textContent = '正在思考中: 0.0s';
-            chatContainer.appendChild(timerDiv);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-
-            timerInterval = setInterval(() => {
-                const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-                const agentName = currentAgentType === 'planner_worker' ? '經典架構' : '雙軌架構';
-                timerDiv.textContent = `⚡ ${agentName} 運行中: ${elapsed}s`;
-            }, 100);
-
-            try {
-                // 使用 fetch API 處理 POST SSE 請求
-                const response = await fetch('/stream', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        action: 'chat',
-                        message: message,
-                        session_id: sessionId,
-                        agent_type: currentAgentType
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer = '';
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    
-                    if (done) {
-                        break;
-                    }
-
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop() || '';
-
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            try {
-                                const data = JSON.parse(line.slice(6));
-                                console.log("SSE Message:", data);
-                                
-                                if (data.type === 'status') {
-                                    appendMessage('agent', data.content, false, data.debug);
-                                } else if (data.type === 'partial') {
-                                    appendMessage('agent', data.content, true, data.debug);
-                                } else if (data.type === 'final') {
-                                    clearInterval(timerInterval);
-                                    timerInterval = null;
-                                    
-                                    const endTime = Date.now();
-                                    const totalTime = ((endTime - startTime) / 1000).toFixed(2);
-                                    
-                                    // 顯示最終消息
-                                    appendMessage('agent', data.content, false, data.debug);
-                                    
-                                    // 更新待办事项
-                                    if (data.pending_questions) {
-                                        updateSessionPendingQuestions(sessionId, data.pending_questions);
-                                    }
-                                    
-                                    // 更新 token 统计
-                                    fetchSessionTokenStats(sessionId);
-                                    
-                                    // 更新计时器为最终状态并停止动画
-                                    timerDiv.className = 'text-center text-xs text-gray-400 my-4 border-t pt-2';
-                                    timerDiv.textContent = `✅ 消息處理完成，總耗時: ${totalTime}s | Agent: ${data.agent_type || currentAgentType}`;
-                                    timerDiv.id = '';
-                                } else if (data.type === 'error') {
-                                    clearInterval(timerInterval);
-                                    timerInterval = null;
-                                    timerDiv.remove();
-                                    
-                                    appendMessage('agent', `錯誤: ${data.content}`);
-                                }
-                            } catch (e) {
-                                console.error('解析 SSE 數據失敗:', e, line);
-                            }
-                        }
-                    }
-                }
-            } catch (error) {
-                clearInterval(timerInterval);
-                timerInterval = null;
-                const timerDiv = document.getElementById('current-timer');
-                if (timerDiv) timerDiv.remove();
-                appendMessage('agent', `錯誤: ${error.message}`);
-                console.error('SSE 連接失敗:', error);
-            }
-        }
-
-        sendBtn.addEventListener('click', sendMessage);
-        userInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendMessage();
-        });
-    </script>
+    <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>

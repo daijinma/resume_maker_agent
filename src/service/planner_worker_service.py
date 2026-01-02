@@ -10,6 +10,7 @@ from src.agents.router import Router
 from src.agents.info_worker import InfoWorker
 from src.agents.experience_worker import ExperienceWorker
 from src.agents.skill_worker import SkillWorker
+from src.agents.education_worker import EducationWorker
 from src.agents.inference import InferenceWorker
 from src.agents.aggregator import Aggregator
 from src.agents.executor import Executor
@@ -57,7 +58,8 @@ class PlannerWorkerService:
         self.workers = {
             "info": InfoWorker(),
             "experience": ExperienceWorker(),
-            "skill": SkillWorker()
+            "skill": SkillWorker(),
+            "education": EducationWorker()
         }
         self.inference_worker = InferenceWorker()
         self.aggregator = Aggregator()
@@ -67,7 +69,8 @@ class PlannerWorkerService:
         self,
         session_id: str,
         user_input: str,
-        on_tool_call: Optional[Callable] = None
+        on_tool_call: Optional[Callable] = None,
+        on_sse_event: Optional[Callable] = None
     ) -> Dict[str, Any]:
         """
         处理用户消息
@@ -76,6 +79,7 @@ class PlannerWorkerService:
             session_id: 会话 ID
             user_input: 用户输入
             on_tool_call: 工具调用回调
+            on_sse_event: SSE事件回调函数
         
         Returns:
             Dict: 处理结果
@@ -162,7 +166,7 @@ class PlannerWorkerService:
         last_question = session_data.get("last_question")
         try:
             route_result = await self.router.route(
-                user_input, session_data, last_question=last_question, session_id=session_id
+                user_input, session_data, last_question=last_question, session_id=session_id, on_sse_event=on_sse_event
             )
             intents = route_result.get("intents", ["chat"])
             # #region agent log
@@ -189,11 +193,22 @@ class PlannerWorkerService:
         self._update_slots(route_result, session_data)
         
         # 5. 处理消息
+        # 获取对话历史（用于首次对话判断）
+        conversation_history = []
+        if session_id:
+            try:
+                conversation_history = await self.session_service.get_history(session_id, limit=5)
+            except Exception as e:
+                logger.warning(f"获取对话历史失败: {e}")
+        
         if len(intents) == 1 and intents[0] == "chat":
             response_text = await self.aggregator.aggregate(
                 session_data, ", ".join(intents),
                 pending_questions=session_data.get("pending_questions", []),
-                session_id=session_id
+                session_id=session_id,
+                user_input=user_input,
+                conversation_history=conversation_history,
+                on_sse_event=on_sse_event
             )
         else:
             # #region agent log
@@ -211,7 +226,7 @@ class PlannerWorkerService:
             
             # 执行 Worker
             try:
-                await self._run_workers(intents, user_input, session_data, on_tool_call, session_id)
+                await self._run_workers(intents, user_input, session_data, on_tool_call, session_id, on_sse_event=on_sse_event)
                 # #region agent log
                 _write_debug_log({
                     "hypothesisId": "D",
@@ -239,7 +254,10 @@ class PlannerWorkerService:
             response_text = await self.aggregator.aggregate(
                 session_data, ", ".join(intents),
                 pending_questions=session_data.get("pending_questions", []),
-                session_id=session_id
+                session_id=session_id,
+                user_input=user_input,
+                conversation_history=conversation_history,
+                on_sse_event=on_sse_event
             )
         
         # 6. 保存 AI 响应到历史
@@ -285,7 +303,8 @@ class PlannerWorkerService:
         user_input: str,
         session_data: Dict[str, Any],
         on_tool_call: Optional[Callable] = None,
-        session_id: str = None
+        session_id: str = None,
+        on_sse_event: Optional[Callable] = None
     ) -> List[Dict[str, Any]]:
         """并行执行专家 Worker"""
         tasks = []
@@ -305,7 +324,7 @@ class PlannerWorkerService:
             
             tasks.append(
                 self.workers[intent].process(
-                    user_input, session_data["resume_data"], on_tool_call=worker_callback, session_id=session_id
+                    user_input, session_data["resume_data"], on_tool_call=worker_callback, session_id=session_id, on_sse_event=on_sse_event
                 )
             )
         
@@ -313,8 +332,25 @@ class PlannerWorkerService:
             return []
         
         results = await asyncio.gather(*tasks)
+        all_missing_fields = []
+        
         for res in results:
-            deep_merge(session_data["resume_data"], res)
+            # 处理新的返回格式：{extracted_data: {}, missing_fields: []}
+            if isinstance(res, dict):
+                # 合并提取的数据
+                extracted = res.get("extracted_data", res)
+                deep_merge(session_data["resume_data"], extracted)
+                
+                # 收集缺失字段（简单数组）
+                missing = res.get("missing_fields", [])
+                if missing:
+                    all_missing_fields.extend(missing)
+            else:
+                logger.warning(f"Worker 返回了非字典类型: {type(res)}, 跳过合并")
+        
+        # 传递给 Aggregator（简单数组格式，去重）
+        session_data["worker_missing_fields"] = list(set(all_missing_fields))
+        
         return results
     
     async def _run_inference(self, session_data: Dict[str, Any], force: bool = False, session_id: str = None) -> Dict[str, Any]:

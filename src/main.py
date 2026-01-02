@@ -16,8 +16,10 @@ app = FastAPI(title="Chat-to-Resume Multi-Agent API")
 # 挂载静态文件
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# 包含业务路由
+# 包含业务路由（不带前缀，用于 /stream 等）
 app.include_router(api_router)
+# 包含业务路由（带 /api 前缀，用于 REST API）
+app.include_router(api_router, prefix="/api", tags=["api"])
 
 @app.get("/", response_class=HTMLResponse)
 async def get_ui():

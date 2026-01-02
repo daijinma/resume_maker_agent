@@ -8,7 +8,15 @@ logger = logging.getLogger("resume-agent.inference")
 
 class InferenceWorker(BaseAgent):
     def __init__(self):
-        super().__init__(model=ModelConfig.MODEL_PLANNER) # 使用较强的模型进行逻辑分析
+        # 使用推理模型配置
+        config = ModelConfig.get_model_config("inference")
+        super().__init__(
+            models=config["models"],
+            temperature=config.get("temperature", 0.3),
+            max_tokens=config.get("max_tokens"),
+            timeout=config.get("timeout"),
+            initial_model_index=config.get("initial_model_index")
+        )
 
     @time_it
     async def analyze(self, resume_data: Dict[str, Any], session_id: str = None) -> Dict[str, Any]:

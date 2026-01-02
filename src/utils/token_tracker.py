@@ -9,51 +9,20 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
 import asyncpg
 from src.config.database import DatabaseConfig
-from src.config.settings import Settings
 
 logger = logging.getLogger("resume-agent.token_tracker")
 
 
 class TokenTracker:
-    """Token 使用追踪器"""
+    """Token 使用追踪器（使用数据库存储）"""
     
-    def __init__(self, use_database: Optional[bool] = None):
-        """
-        初始化 Token 追踪器
-        
-        Args:
-            use_database: 是否使用数据库，None 则从配置读取
-        """
-        self.use_database = use_database if use_database is not None else Settings.USE_DATABASE
+    def __init__(self):
+        """初始化 Token 追踪器"""
         self.pool: Optional[asyncpg.Pool] = None
-        self.json_storage_path = "token_usage.json"
-        self._json_data: Dict[str, List[Dict[str, Any]]] = {}
-        if not self.use_database:
-            self._load_json_data()
-    
-    def _load_json_data(self):
-        """加载 JSON 数据"""
-        if os.path.exists(self.json_storage_path):
-            try:
-                with open(self.json_storage_path, "r", encoding="utf-8") as f:
-                    self._json_data = json.load(f)
-            except Exception as e:
-                logger.error(f"加载 token 使用记录失败: {e}")
-                self._json_data = {}
-        else:
-            self._json_data = {}
-    
-    def _save_json_data(self):
-        """保存 JSON 数据"""
-        try:
-            with open(self.json_storage_path, "w", encoding="utf-8") as f:
-                json.dump(self._json_data, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            logger.error(f"保存 token 使用记录失败: {e}")
     
     async def initialize(self, pool_size: int = 10):
-        """初始化数据库连接池（仅数据库模式）"""
-        if self.use_database and self.pool is None:
+        """初始化数据库连接池"""
+        if self.pool is None:
             try:
                 self.pool = await asyncpg.create_pool(
                     DatabaseConfig.DATABASE_URL,
@@ -66,7 +35,7 @@ class TokenTracker:
                 raise
     
     async def close(self):
-        """关闭数据库连接池（仅数据库模式）"""
+        """关闭数据库连接池"""
         if self.pool:
             await self.pool.close()
             self.pool = None
@@ -98,16 +67,10 @@ class TokenTracker:
             total_tokens = input_tokens + output_tokens
         
         try:
-            if self.use_database:
-                await self._record_to_database(
-                    session_id, agent_type, agent_class, model_name,
-                    input_tokens, output_tokens, total_tokens
-                )
-            else:
-                self._record_to_json(
-                    session_id, agent_type, agent_class, model_name,
-                    input_tokens, output_tokens, total_tokens
-                )
+            await self._record_to_database(
+                session_id, agent_type, agent_class, model_name,
+                input_tokens, output_tokens, total_tokens
+            )
         except Exception as e:
             # 记录失败不应影响主业务逻辑
             logger.error(f"记录 token 使用情况失败: {e}", exc_info=True)
@@ -134,34 +97,6 @@ class TokenTracker:
             """, session_id, agent_type, agent_class, model_name,
                 input_tokens, output_tokens, total_tokens)
     
-    def _record_to_json(
-        self,
-        session_id: str,
-        agent_type: str,
-        agent_class: str,
-        model_name: str,
-        input_tokens: int,
-        output_tokens: int,
-        total_tokens: int
-    ):
-        """记录到 JSON 文件"""
-        if session_id not in self._json_data:
-            self._json_data[session_id] = []
-        
-        record = {
-            "session_id": session_id,
-            "agent_type": agent_type,
-            "agent_class": agent_class,
-            "model_name": model_name,
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-            "total_tokens": total_tokens,
-            "created_at": datetime.now().isoformat()
-        }
-        
-        self._json_data[session_id].append(record)
-        self._save_json_data()
-    
     async def get_session_total(self, session_id: str) -> Dict[str, Any]:
         """
         获取会话的总 token 消耗
@@ -173,10 +108,7 @@ class TokenTracker:
             Dict: 包含 input_tokens, output_tokens, total_tokens
         """
         try:
-            if self.use_database:
-                return await self._get_session_total_from_db(session_id)
-            else:
-                return self._get_session_total_from_json(session_id)
+            return await self._get_session_total_from_db(session_id)
         except Exception as e:
             logger.error(f"获取会话 token 统计失败: {e}", exc_info=True)
             return {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
@@ -203,18 +135,6 @@ class TokenTracker:
                 }
             return {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
     
-    def _get_session_total_from_json(self, session_id: str) -> Dict[str, Any]:
-        """从 JSON 获取会话统计"""
-        if session_id not in self._json_data:
-            return {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
-        
-        records = self._json_data[session_id]
-        return {
-            "input_tokens": sum(r.get("input_tokens", 0) for r in records),
-            "output_tokens": sum(r.get("output_tokens", 0) for r in records),
-            "total_tokens": sum(r.get("total_tokens", 0) for r in records)
-        }
-    
     async def get_statistics(
         self,
         session_id: Optional[str] = None,
@@ -239,14 +159,9 @@ class TokenTracker:
             Dict: 统计结果
         """
         try:
-            if self.use_database:
-                return await self._get_statistics_from_db(
-                    session_id, agent_type, model_name, start_date, end_date, group_by
-                )
-            else:
-                return self._get_statistics_from_json(
-                    session_id, agent_type, model_name, start_date, end_date, group_by
-                )
+            return await self._get_statistics_from_db(
+                session_id, agent_type, model_name, start_date, end_date, group_by
+            )
         except Exception as e:
             logger.error(f"获取统计信息失败: {e}", exc_info=True)
             return {"total": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}}
@@ -371,84 +286,6 @@ class TokenTracker:
                         }
                     }
                 return {"total": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}}
-    
-    def _get_statistics_from_json(
-        self,
-        session_id: Optional[str],
-        agent_type: Optional[str],
-        model_name: Optional[str],
-        start_date: Optional[datetime],
-        end_date: Optional[datetime],
-        group_by: Optional[str]
-    ) -> Dict[str, Any]:
-        """从 JSON 获取统计"""
-        all_records = []
-        
-        # 收集所有符合条件的记录
-        for sess_id, records in self._json_data.items():
-            if session_id and sess_id != session_id:
-                continue
-            
-            for record in records:
-                if agent_type and record.get("agent_type") != agent_type:
-                    continue
-                if model_name and record.get("model_name") != model_name:
-                    continue
-                
-                created_at_str = record.get("created_at")
-                if created_at_str:
-                    try:
-                        created_at = datetime.fromisoformat(created_at_str)
-                        if start_date and created_at < start_date:
-                            continue
-                        if end_date and created_at > end_date:
-                            continue
-                    except:
-                        pass
-                
-                all_records.append(record)
-        
-        # 计算总计
-        total = {
-            "input_tokens": sum(r.get("input_tokens", 0) for r in all_records),
-            "output_tokens": sum(r.get("output_tokens", 0) for r in all_records),
-            "total_tokens": sum(r.get("total_tokens", 0) for r in all_records)
-        }
-        
-        if group_by:
-            groups = {}
-            for record in all_records:
-                if group_by == "agent_type":
-                    key = record.get("agent_type", "unknown")
-                elif group_by == "model_name":
-                    key = record.get("model_name", "unknown")
-                elif group_by == "day":
-                    created_at_str = record.get("created_at")
-                    if created_at_str:
-                        try:
-                            key = datetime.fromisoformat(created_at_str).date().isoformat()
-                        except:
-                            key = "unknown"
-                    else:
-                        key = "unknown"
-                else:
-                    key = "all"
-                
-                if key not in groups:
-                    groups[key] = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
-                
-                groups[key]["input_tokens"] += record.get("input_tokens", 0)
-                groups[key]["output_tokens"] += record.get("output_tokens", 0)
-                groups[key]["total_tokens"] += record.get("total_tokens", 0)
-            
-            return {
-                "groups": [
-                    {group_by: k, **v} for k, v in sorted(groups.items(), key=lambda x: x[1]["total_tokens"], reverse=True)
-                ],
-                "total": total
-            }
-        else:
-            return {"total": total}
 
 
 # 全局实例

@@ -7,7 +7,7 @@
 import json
 import logging
 import asyncio
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union, List
 from datetime import datetime
 from src.agents.base import BaseAgent, time_it
 from src.config.models import ModelConfig
@@ -19,15 +19,36 @@ logger = logging.getLogger("dual-track.background_reasoner")
 class BackgroundReasoner(BaseAgent):
     """背景推理服务"""
     
-    def __init__(self, model: Optional[str] = None):
+    def __init__(self, model: Optional[Union[str, List[str]]] = None):
         """
         初始化背景推理服务
         
         Args:
-            model: 使用的模型（默认使用推理模型）
+            model: 使用的模型（字符串或列表，默认使用推理模型配置）
         """
-        model = model or ModelConfig.MODEL_INFERENCE
-        super().__init__(model=model, temperature=0.3)
+        if model is None:
+            config = ModelConfig.get_model_config("inference")
+            models = config["models"]
+            temperature = config.get("temperature", 0.3)
+            max_tokens = config.get("max_tokens")
+            timeout = config.get("timeout")
+            initial_model_index = config.get("initial_model_index")
+        else:
+            # 如果指定了模型，使用指定的模型，其他参数使用默认配置
+            models = model if isinstance(model, list) else [model]
+            config = ModelConfig.get_model_config("inference")
+            temperature = config.get("temperature", 0.3)
+            max_tokens = config.get("max_tokens")
+            timeout = config.get("timeout")
+            initial_model_index = config.get("initial_model_index")
+        
+        super().__init__(
+            models=models,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            timeout=timeout,
+            initial_model_index=initial_model_index
+        )
     
     @time_it
     async def analyze_and_generate_questions(
@@ -45,7 +66,24 @@ class BackgroundReasoner(BaseAgent):
         Returns:
             Dict: 包含 insights 和 questions 的结果
         """
-        system_prompt = self._load_reasoning_prompt()
+        system_prompt = self.load_prompt("inference_worker")
+        if not system_prompt:
+            # 如果加载失败，使用默认提示词
+            system_prompt = """你是一个专业的简历分析助手。请分析简历数据的完整性和逻辑性，识别缺失的关键信息，并生成需要追问的问题。
+
+分析要点：
+1. 基本信息是否完整（姓名、联系方式、教育背景）
+2. 工作经历是否详细（时间、职位、职责、成果）
+3. 技能和证书是否齐全
+4. 数据逻辑是否合理（时间顺序、职位晋升等）
+
+问题生成规则：
+- 优先级 1-3：基本信息（name, phone, email）
+- 优先级 4-6：教育背景（school, major, degree）
+- 优先级 7-10：工作经历
+- 优先级 11+：技能和证书
+
+返回 JSON 格式，包含 insights（分析结果列表）、summary（总结）和 questions（问题列表）。"""
         current_date = datetime.now().strftime("%Y-%m-%d")
         
         user_prompt = f"""當前日期: {current_date}
@@ -99,35 +137,6 @@ class BackgroundReasoner(BaseAgent):
                 "questions": []
             }
     
-    def _load_reasoning_prompt(self) -> str:
-        """加载推理提示词"""
-        try:
-            import os
-            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            prompt_path = os.path.join(base_dir, "prompts", "inference_worker.md")
-            with open(prompt_path, "r", encoding="utf-8") as f:
-                return f.read().strip()
-        except Exception as e:
-            logger.warning(f"无法加载推理提示词，使用默认提示词: {e}")
-            return self._get_default_prompt()
-    
-    def _get_default_prompt(self) -> str:
-        """默认推理提示词"""
-        return """你是一个专业的简历分析助手。请分析简历数据的完整性和逻辑性，识别缺失的关键信息，并生成需要追问的问题。
-
-分析要点：
-1. 基本信息是否完整（姓名、联系方式、教育背景）
-2. 工作经历是否详细（时间、职位、职责、成果）
-3. 技能和证书是否齐全
-4. 数据逻辑是否合理（时间顺序、职位晋升等）
-
-问题生成规则：
-- 优先级 1-3：基本信息（name, phone, email）
-- 优先级 4-6：教育背景（school, major, degree）
-- 优先级 7-10：工作经历
-- 优先级 11+：技能和证书
-
-返回 JSON 格式，包含 insights（分析结果列表）、summary（总结）和 questions（问题列表）。"""
 
 
 class AsyncBackgroundReasoner:

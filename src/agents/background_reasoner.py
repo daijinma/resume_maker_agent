@@ -219,6 +219,15 @@ class AsyncBackgroundReasoner:
                 session_data["last_reasoning_time"] = datetime.now().isoformat()
                 session_data["inference_insights"] = result.get("insights", [])
                 session_data["question_queue"] = question_queue.to_dict()
+                
+                # 将 inference 提取的技能合并到 resume_data 中
+                skills = result.get("skills", [])
+                if skills:
+                    from src.utils.helpers import deep_merge
+                    skills_data = {"skills": skills}
+                    deep_merge(session_data["resume_data"], skills_data)
+                    logger.info(f"BackgroundReasoner 提取了 {len(skills)} 个技能类别")
+                
                 await self.session_service.save_session(session_id, session_data)
                 
                 logger.info(f"会话 {session_id} 的背景推理完成，生成了 {len(result.get('questions', []))} 个问题")

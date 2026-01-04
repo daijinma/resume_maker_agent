@@ -35,7 +35,16 @@ class InferenceWorker(BaseAgent):
         
         try:
             result = await self.run_chain(system_prompt, user_prompt, session_id=session_id)
+            # 确保返回格式包含所有必要字段
+            if not isinstance(result, dict):
+                result = {}
+            if "insights" not in result:
+                result["insights"] = []
+            if "skills" not in result:
+                result["skills"] = []
+            if "summary" not in result:
+                result["summary"] = ""
             return result
         except Exception as e:
             logger.error(f"推理分析失败: {e}")
-            return {"insights": [], "summary": "分析失败"}
+            return {"insights": [], "skills": [], "summary": "分析失败"}

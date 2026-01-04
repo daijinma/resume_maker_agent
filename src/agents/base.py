@@ -596,6 +596,7 @@ class BaseAgent:
         on_tool_call=None,
         session_id: Optional[str] = None,
         on_sse_event=None,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
         **kwargs
     ):
         """
@@ -608,6 +609,7 @@ class BaseAgent:
             on_tool_call: 工具调用回调
             session_id: 会话ID（用于 token 追踪）
             on_sse_event: SSE事件回调函数，签名: async def on_sse_event(event_type: str, data: dict)
+            conversation_history: 对话历史，格式为 [{"role": "user|assistant", "content": "..."}]
             **kwargs: 其他参数
         """
         logger.info(f"--- Agent [{self.__class__.__name__}] 开始调用 LLM ---")
@@ -658,10 +660,23 @@ class BaseAgent:
         
         if not self.tools:
             user_template_jinja = "{{input}}"
-            prompt = ChatPromptTemplate.from_messages([
-                ("system", system_prompt_jinja),
-                ("user", user_template_jinja)
-            ], template_format="jinja2")
+            # 构建消息列表
+            messages_list = [("system", system_prompt_jinja)]
+            
+            # 如果有对话历史，将其插入到 system 和 user 消息之间
+            if conversation_history:
+                for msg in conversation_history:
+                    role = msg.get("role", "")
+                    content = msg.get("content", "")
+                    if role == "user":
+                        messages_list.append(("human", content))
+                    elif role == "assistant":
+                        messages_list.append(("ai", content))
+            
+            # 添加当前用户输入
+            messages_list.append(("user", user_template_jinja))
+            
+            prompt = ChatPromptTemplate.from_messages(messages_list, template_format="jinja2")
             
             # 合并输入变量
             # 将 user_input 位置参数映射到 input 变量（用于用户消息模板）
@@ -700,10 +715,23 @@ class BaseAgent:
                 result = parser.parse(llm_response.content)
         else:
             # 带工具调用的逻辑
-            prompt = ChatPromptTemplate.from_messages([
-                ("system", system_prompt_jinja),
-                ("user", "{{input}}")
-            ], template_format="jinja2")
+            # 构建消息列表
+            messages_list = [("system", system_prompt_jinja)]
+            
+            # 如果有对话历史，将其插入到 system 和 user 消息之间
+            if conversation_history:
+                for msg in conversation_history:
+                    role = msg.get("role", "")
+                    content = msg.get("content", "")
+                    if role == "user":
+                        messages_list.append(("user", content))
+                    elif role == "assistant":
+                        messages_list.append(("assistant", content))
+            
+            # 添加当前用户输入
+            messages_list.append(("user", "{{input}}"))
+            
+            prompt = ChatPromptTemplate.from_messages(messages_list, template_format="jinja2")
             
             # 处理输入变量
             # 将 user_input 位置参数映射到 input 变量（用于用户消息模板）

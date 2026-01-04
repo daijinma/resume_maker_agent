@@ -5,7 +5,7 @@ import json
 import asyncio
 import logging
 import time
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from sse_starlette.sse import EventSourceResponse
 
@@ -895,6 +895,24 @@ async def get_session_pending_questions(session_id: str):
             "pending_questions": [],
             "background_reasoning_status": "unknown"
         }
+
+
+@api_router.put("/sessions/{session_id}/name")
+async def update_session_name(session_id: str, name: str = Query(None)):
+    """更新会话名称"""
+    try:
+        session_service = get_session_service()
+        # 如果 name 为空字符串，设置为 None
+        session_name = name if name and name.strip() else None
+        await session_service.update_session_name(session_id, session_name)
+        return {
+            "session_id": session_id,
+            "session_name": session_name,
+            "success": True
+        }
+    except Exception as e:
+        logger.error(f"更新会话名称失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @api_router.get("/token/statistics")

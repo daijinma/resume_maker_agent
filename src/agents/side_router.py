@@ -57,14 +57,6 @@ class SideRouter(BaseAgent):
             ])
             user_prompt_parts.append(f"待提问的问题：\n{questions_text}")
         
-        # 添加对话历史
-        if conversation_history:
-            history_text = "\n".join([
-                f"{msg.get('role', 'unknown')}: {msg.get('content', '')}"
-                for msg in conversation_history[-5:]
-            ])
-            user_prompt_parts.append(f"最近对话历史：\n{history_text}")
-        
         # 添加用户输入
         user_prompt_parts.append(f"用户最新输入：{user_input}")
         
@@ -73,13 +65,20 @@ class SideRouter(BaseAgent):
         
         user_prompt = "\n\n".join(user_prompt_parts)
         
+        # 限制对话历史长度（最多最近5轮）
+        limited_history = None
+        if conversation_history:
+            limited_history = conversation_history[-5:]  # 最多最近5轮
+        
         # 调用模型，不使用 JSON 模式，直接返回文本
+        # conversation_history 作为消息历史传递，而不是放在 prompt 中
         response = await self.run_chain(
             system_prompt,
             user_prompt,
             json_mode=False,
             session_id=session_id,
-            on_sse_event=on_sse_event
+            on_sse_event=on_sse_event,
+            conversation_history=limited_history
         )
         
         # 如果返回空字符串或只包含空白字符，返回空字符串

@@ -360,6 +360,14 @@ class PlannerWorkerService:
         
         result = await self.inference_worker.analyze(session_data["resume_data"], session_id=session_id)
         session_data["inference_insights"] = result.get("insights", [])
+        
+        # 将 inference 提取的技能合并到 resume_data 中
+        skills = result.get("skills", [])
+        if skills:
+            skills_data = {"skills": skills}
+            deep_merge(session_data["resume_data"], skills_data)
+            logger.info(f"Inference agent 提取了 {len(skills)} 个技能类别")
+        
         return result
     
     def _calculate_total_duration(self, active_intents: List[str]) -> float:

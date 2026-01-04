@@ -295,12 +295,21 @@ export async function loadSessionsFromBackend(onUpdate) {
                         token_stats: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
                         pending_questions: [],
                         pending_questions_raw: [],
-                        last_updated: sess.updated_at || sess.created_at
+                        last_updated: sess.updated_at || sess.created_at,
+                        created_at: sess.created_at || sess.updated_at || new Date().toISOString()
                     };
                 }
-                // 更新 agent_type 和 last_updated
+                // 更新 agent_type、session_name、last_updated 和 created_at
                 appState.sessions[sess.session_id].agent_type = sess.agent_type || CONFIG.DEFAULT_AGENT_TYPE;
+                appState.sessions[sess.session_id].session_name = sess.session_name || null;
                 appState.sessions[sess.session_id].last_updated = sess.updated_at || sess.created_at;
+                // 如果后端返回了 created_at，优先使用它（确保排序稳定）
+                if (sess.created_at) {
+                    appState.sessions[sess.session_id].created_at = sess.created_at;
+                } else if (!appState.sessions[sess.session_id].created_at) {
+                    // 如果没有 created_at，使用 updated_at 或当前时间
+                    appState.sessions[sess.session_id].created_at = sess.updated_at || new Date().toISOString();
+                }
             });
             if (onUpdate) onUpdate();
         }
@@ -335,11 +344,18 @@ export async function fetchSessionTokenStats(sessId, onUpdate) {
     try {
         const data = await callRestAPI(`/api/sessions/${sessId}/token-stats`);
         if (!appState.sessions[sessId]) {
+            const now = new Date().toISOString();
             appState.sessions[sessId] = {
                 token_stats: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
                 pending_questions: [],
-                last_updated: new Date().toISOString()
+                last_updated: now,
+                created_at: now
             };
+        } else {
+            // 确保 created_at 存在
+            if (!appState.sessions[sessId].created_at) {
+                appState.sessions[sessId].created_at = appState.sessions[sessId].last_updated || new Date().toISOString();
+            }
         }
         // 支持两种数据格式：直接有total字段，或者嵌套在result中
         if (data.total) {
@@ -369,5 +385,12 @@ export async function fetchSessionPendingQuestions(sessId, onUpdate) {
         // 静默失败，不影响其他功能
         console.debug('获取待办事项失败（可能不支持）:', error);
     }
+}
+
+// 更新会话名称
+export async function updateSessionName(sessId, name) {
+    return await callRestAPI(`/api/sessions/${sessId}/name?name=${encodeURIComponent(name)}`, {
+        method: 'PUT'
+    });
 }
 

@@ -16,7 +16,8 @@ export function initDOM() {
         todoContainer: document.getElementById('todo-container'),
         todoList: document.getElementById('todo-list'),
         todoToggle: document.getElementById('todo-toggle'),
-        todoToggleText: document.getElementById('todo-toggle-text')
+        todoToggleText: document.getElementById('todo-toggle-text'),
+        editSessionNameBtn: document.getElementById('edit-session-name-btn')
     };
 }
 

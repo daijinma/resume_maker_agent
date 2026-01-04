@@ -82,6 +82,7 @@ class DBSessionStorage:
                     inference_insights JSONB DEFAULT '[]',
                     last_resume_hash VARCHAR(255),
                     agent_type VARCHAR(50) DEFAULT 'planner_worker',
+                    session_name VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -112,6 +113,7 @@ class DBSessionStorage:
                 ('inference_insights', 'JSONB DEFAULT \'[]\''),
                 ('last_resume_hash', 'VARCHAR(255)'),
                 ('agent_type', 'VARCHAR(50) DEFAULT \'planner_worker\''),
+                ('session_name', 'VARCHAR(255)'),
                 ('background_reasoning_status', 'VARCHAR(50) DEFAULT \'pending\''),
                 ('last_reasoning_time', 'TIMESTAMP'),
                 ('created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'),
@@ -250,7 +252,7 @@ class DBSessionStorage:
                            background_reasoning_status, last_reasoning_time,
                            history, last_question, pending_questions,
                            inference_insights, last_resume_hash, agent_type,
-                           created_at, updated_at
+                           session_name, created_at, updated_at
                     FROM sessions
                     WHERE session_id = $1
                 """, session_id)
@@ -338,6 +340,7 @@ class DBSessionStorage:
                     "inference_insights": inference_insights,
                     "last_resume_hash": row["last_resume_hash"],
                     "agent_type": row["agent_type"] or "planner_worker",
+                    "session_name": row.get("session_name"),
                     "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                     "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
                 }
@@ -398,6 +401,7 @@ class DBSessionStorage:
                     "inference_insights": [],
                     "last_resume_hash": None,
                     "agent_type": "planner_worker",
+                    "session_name": None,
                     "created_at": datetime.now().isoformat(),
                     "updated_at": datetime.now().isoformat(),
                 }
@@ -416,6 +420,7 @@ class DBSessionStorage:
             inference_insights = data.get("inference_insights", [])
             last_resume_hash = data.get("last_resume_hash")
             agent_type = data.get("agent_type", "planner_worker")
+            session_name = data.get("session_name")
             
             # 修复：确保 last_resume_hash 是字符串（hash() 返回整数）
             if last_resume_hash is not None and not isinstance(last_resume_hash, str):
@@ -432,8 +437,8 @@ class DBSessionStorage:
                 (session_id, resume_data, question_queue, 
                  background_reasoning_status, last_reasoning_time,
                  history, last_question, pending_questions,
-                 inference_insights, last_resume_hash, agent_type)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                 inference_insights, last_resume_hash, agent_type, session_name)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                 ON CONFLICT (session_id) 
                 DO UPDATE SET
                     resume_data = EXCLUDED.resume_data,
@@ -446,6 +451,7 @@ class DBSessionStorage:
                     inference_insights = EXCLUDED.inference_insights,
                     last_resume_hash = EXCLUDED.last_resume_hash,
                     agent_type = EXCLUDED.agent_type,
+                    session_name = EXCLUDED.session_name,
                     updated_at = CURRENT_TIMESTAMP
             """, 
                 session_id,
@@ -458,7 +464,8 @@ class DBSessionStorage:
                 json.dumps(pending_questions) if isinstance(pending_questions, list) else pending_questions,
                 json.dumps(inference_insights) if isinstance(inference_insights, list) else inference_insights,
                 last_resume_hash,
-                agent_type
+                agent_type,
+                session_name
             )
             
             logger.debug(f"已保存会话: {session_id}")
@@ -682,6 +689,10 @@ class SessionService:
         """添加消息到对话历史"""
         await self.storage.add_message(session_id, role, content, agent_type)
     
+    async def update_session_name(self, session_id: str, session_name: str):
+        """更新会话名称"""
+        await self.storage.update_session_name(session_id, session_name)
+    
     async def get_history(self, session_id: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """获取对话历史"""
         return await self.storage.get_history(session_id, limit)
@@ -719,7 +730,7 @@ class SessionService:
         
         async with self.storage.pool.acquire() as conn:
             query = """
-                SELECT session_id, agent_type, created_at, updated_at
+                SELECT session_id, agent_type, session_name, created_at, updated_at
                 FROM sessions
                 ORDER BY created_at DESC
             """
@@ -735,6 +746,7 @@ class SessionService:
                 {
                     "session_id": row["session_id"],
                     "agent_type": row["agent_type"] or "planner_worker",
+                    "session_name": row.get("session_name"),
                     "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                     "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None
                 }

@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     inference_insights JSONB DEFAULT '[]',  -- 两种架构共享
     last_resume_hash VARCHAR(255),  -- Planner-Worker 架构使用
     agent_type VARCHAR(50) DEFAULT 'planner_worker',  -- 最后使用的 agent 类型
+    session_name VARCHAR(255),  -- 会话的自定义名称
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

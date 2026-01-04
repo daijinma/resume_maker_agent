@@ -150,6 +150,27 @@
             <!-- Sessions will be dynamically added here -->
         </div>
         
+        <!-- Resume Data Display -->
+        <div id="resume-container" class="bg-blue-50 border-t border-blue-200 flex flex-col hidden" style="max-height: 40%; min-height: 200px;">
+            <div class="p-3 border-b border-blue-200 flex-shrink-0">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-semibold text-blue-800 flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"></path>
+                        </svg>
+                        已收集信息
+                    </h3>
+                    <button id="resume-toggle" class="text-blue-600 hover:text-blue-800 text-xs flex items-center">
+                        <span id="resume-toggle-text">收起</span>
+                        <svg class="w-4 h-4 inline-block ml-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <pre id="resume-content" class="flex-1 overflow-y-auto p-3 text-xs text-blue-900 font-mono bg-white m-2 rounded border border-blue-200 min-h-0 whitespace-pre-wrap break-words"></pre>
+        </div>
+        
         <!-- Todo List (Pending Questions) -->
         <div id="todo-container" class="bg-amber-50 border-t border-amber-200 flex flex-col hidden" style="max-height: 40%; min-height: 200px;">
             <div class="p-3 border-b border-amber-200 flex-shrink-0">
@@ -208,6 +229,7 @@
                             class="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                             <option value="planner_worker">經典架構 (Planner-Worker)</option>
                             <option value="dual_track">雙軌架構 (Dual Track)</option>
+                            <option value="simple_chat">無架構 (Simple Chat)</option>
                         </select>
                     </div>
                    

@@ -5,6 +5,12 @@
     "default_headers": {
     }
   },
+  "ohmygpt": {
+    "api_key": "${OHMYGPT_API_KEY}",
+    "base_url": "https://api.ohmygpt.com/v1",
+    "default_headers": {
+    }
+  },
   "agents": {
     "planner": {
       "models": [
@@ -104,12 +110,7 @@
     },
     "aggregator": {
       "models": [
-        "meta-llama/llama-3.2-3b-instruct:free",
-        "qwen/qwen3-4b:free",
-        "mistralai/mistral-7b-instruct:free",
-        "nvidia/nemotron-nano-9b-v2:free",
-        "openai/gpt-oss-20b:free",
-        "z-ai/glm-4.5-air:free"
+        "gemini-2.0-flash-lite"
       ],
       "temperature": 0.3,
       "max_tokens": 4096,
@@ -139,6 +140,15 @@
       "temperature": 0.3,
       "max_tokens": 1024,
       "timeout": 15.0
+    },
+    "simple_chat": {
+      "models": [
+        "google/gemini-2.0-flash-lite:free",
+        "gemini-2.0-flash-lite"
+      ],
+      "temperature": 0.7,
+      "max_tokens": 8192,
+      "timeout": 60.0
     }
   }
 }

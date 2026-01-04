@@ -79,13 +79,17 @@ class BaseAgent:
         self.timeout = timeout
         self.tools = tools or []
         
-        # 获取 OpenRouter 配置
-        openrouter_config = ModelConfig.get_openrouter_config()
+        # 根据当前模型名称自动判断供应方
+        current_model = self.models[self.current_model_index]
+        self.provider = ModelConfig.get_provider_for_model(current_model)
+        
+        # 获取供应方配置
+        provider_config = ModelConfig.get_provider_config(self.provider)
         
         # 创建第一个模型的 LLM 客户端
         self.llm = self._create_llm_client(
             self.models[self.current_model_index],
-            openrouter_config
+            provider_config
         )
         self.model_name = self.models[self.current_model_index]
         self.last_duration = 0.0
@@ -94,13 +98,13 @@ class BaseAgent:
         if self.tools:
             self.llm_with_tools = self.llm.bind_tools(self.tools)
     
-    def _create_llm_client(self, model: str, openrouter_config: Dict[str, Any]) -> ChatOpenAI:
+    def _create_llm_client(self, model: str, provider_config: Dict[str, Any]) -> ChatOpenAI:
         """创建指定模型的 LLM 客户端"""
         client_kwargs = {
             "model": model,
-            "openai_api_key": openrouter_config.get("api_key"),
-            "openai_api_base": openrouter_config.get("base_url"),
-            "default_headers": openrouter_config.get("default_headers", {}),
+            "openai_api_key": provider_config.get("api_key"),
+            "openai_api_base": provider_config.get("base_url"),
+            "default_headers": provider_config.get("default_headers", {}),
             "temperature": self.temperature
         }
         
@@ -134,11 +138,14 @@ class BaseAgent:
         
         logger.info(f"切换到下一个模型: {new_model} (索引: {self.current_model_index})")
         
-        # 获取 OpenRouter 配置
-        openrouter_config = ModelConfig.get_openrouter_config()
+        # 根据新模型名称自动判断供应方
+        self.provider = ModelConfig.get_provider_for_model(new_model)
+        
+        # 获取供应方配置
+        provider_config = ModelConfig.get_provider_config(self.provider)
         
         # 创建新的 LLM 客户端
-        self.llm = self._create_llm_client(new_model, openrouter_config)
+        self.llm = self._create_llm_client(new_model, provider_config)
         self.model_name = new_model
         
         # 重新绑定工具（如果有）
@@ -709,7 +716,29 @@ class BaseAgent:
             
             if json_mode:
                 parser = JsonOutputParser()
-                result = parser.parse(llm_response.content)
+                # 检查内容是否为空
+                if not llm_response.content or not llm_response.content.strip():
+                    logger.warning(f"LLM 返回空内容，使用默认 JSON 响应")
+                    # 根据调用者提供默认响应
+                    # 如果是 router，返回默认的 chat intent
+                    default_json = {
+                        "intents": ["chat"],
+                        "reason": "LLM 返回空响应，使用默认处理",
+                        "slots_to_fill": []
+                    }
+                    result = default_json
+                else:
+                    try:
+                        result = parser.parse(llm_response.content)
+                    except Exception as e:
+                        logger.error(f"JSON 解析失败: {e}, 内容: {llm_response.content[:200]}")
+                        # 提供默认响应
+                        default_json = {
+                            "intents": ["chat"],
+                            "reason": f"JSON 解析失败: {str(e)}",
+                            "slots_to_fill": []
+                        }
+                        result = default_json
             else:
                 parser = StrOutputParser()
                 result = parser.parse(llm_response.content)

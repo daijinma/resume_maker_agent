@@ -12,6 +12,7 @@ from sse_starlette.sse import EventSourceResponse
 from src.schema import StreamRequest, AgentType
 from src.service.planner_worker_service import PlannerWorkerService
 from src.service.dual_track_service import DualTrackService
+from src.service.simple_chat_service import SimpleChatService
 from src.service.session_service import SessionService
 from src.service.token_statistics_service import TokenStatisticsService
 from src.config.settings import Settings
@@ -47,6 +48,7 @@ def _write_debug_log(data: dict):
 _session_service = None
 _planner_worker_service = None
 _dual_track_service = None
+_simple_chat_service = None
 _token_statistics_service = None
 
 
@@ -76,6 +78,15 @@ def get_dual_track_service() -> DualTrackService:
         # 初始化数据库连接
         asyncio.create_task(session_service.initialize())
     return _dual_track_service
+
+
+def get_simple_chat_service() -> SimpleChatService:
+    """获取 Simple Chat 服务实例（懒加载）"""
+    global _simple_chat_service
+    if _simple_chat_service is None:
+        session_service = get_session_service()
+        _simple_chat_service = SimpleChatService(session_service)
+    return _simple_chat_service
 
 
 def get_token_statistics_service() -> TokenStatisticsService:
@@ -189,6 +200,8 @@ async def stream(request: StreamRequest):
                 try:
                     if selected_agent == AgentType.DUAL_TRACK:
                         service = get_dual_track_service()
+                    elif selected_agent == AgentType.SIMPLE_CHAT:
+                        service = get_simple_chat_service()
                     else:
                         service = get_planner_worker_service()
                     
@@ -506,6 +519,7 @@ async def stream(request: StreamRequest):
                             "session_id": session_id,
                             "agent_type": result.get("agent_type", selected_agent.value),
                             "pending_questions": result.get("pending_questions", []),
+                            "resume_data": result.get("resume_data", {}),  # 添加 resume_data
                             "debug": result.get("debug", {})
                         })
                         yield sse_event

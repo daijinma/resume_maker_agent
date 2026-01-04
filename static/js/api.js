@@ -86,10 +86,13 @@ export function callStreamAPIWithEventSource(action, body = {}, onMessage, onErr
     console.log('[API] 🚀 使用 EventSource API (GET 请求)');
     console.log('[API] 请求参数:', { action, body });
     
-    // 构建查询参数
+    // 构建查询参数（确保 sessionId 存在）
+    if (!appState.sessionId) {
+        throw new Error('Session ID is required');
+    }
     const params = new URLSearchParams({
         action,
-        session_id: appState.sessionId || 'default',
+        session_id: appState.sessionId,
     });
     
     // 添加 body 中的参数
@@ -166,6 +169,10 @@ export function callStreamAPIWithEventSource(action, body = {}, onMessage, onErr
 
 // 方案2: 使用 fetch + ReadableStream (POST 请求) - 当前方案
 export async function* callStreamAPIWithFetch(action, body = {}) {
+    // 确保 sessionId 存在
+    if (!appState.sessionId) {
+        throw new Error('Session ID is required');
+    }
     const requestBody = {
         action,
         session_id: appState.sessionId,

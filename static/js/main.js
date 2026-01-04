@@ -28,15 +28,16 @@ async function init() {
     // 将 session 对象暴露到全局作用域，以便在 HTML 中访问
     window.session = session;
     
-    // 更新输入框显示当前 session_id
+    // 更新输入框显示当前 session_id（可能为 null）
     if (dom.sessionIdInput) {
-        dom.sessionIdInput.value = appState.sessionId;
+        dom.sessionIdInput.value = appState.sessionId || '';
     }
     
     // 初始化会话列表和待办事项
     session.updateSessionList();
     session.updateEditButtonState();
     todo.updateTodoDisplay();
+    todo.updateResumeDisplay();
     
     // 绑定事件
     dom.newSessionBtn.addEventListener('click', () => session.createNewSession());
@@ -44,6 +45,7 @@ async function init() {
     dom.sidebarToggle?.addEventListener('click', () => ui.toggleSidebar());
     dom.sidebarToggleMobile?.addEventListener('click', () => ui.toggleSidebar());
     dom.todoToggle?.addEventListener('click', () => todo.toggleTodoList());
+    dom.resumeToggle?.addEventListener('click', () => todo.toggleResumeList());
     
     // 绑定编辑会话名称按钮
     if (dom.editSessionNameBtn) {

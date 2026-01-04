@@ -62,17 +62,8 @@ export function initSession(dom, message, todo) {
             dom.sessionList.innerHTML = '';
             const sessionIds = Object.keys(appState.sessions);
             
-            // 确保当前会话在列表中
-            if (!appState.sessions[appState.sessionId]) {
-                const now = new Date().toISOString();
-                appState.sessions[appState.sessionId] = {
-                    token_stats: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
-                    pending_questions: [],
-                    last_updated: now,
-                    created_at: now,
-                    agent_type: appState.currentAgentType
-                };
-            }
+            // 不再自动创建当前会话，仅当 sessionId 存在且不在列表中时才创建
+            // 这样只有在用户主动创建新会话或从 URL 加载会话时才会创建
             
             // 按创建时间倒序排序（最新的在前），active 状态不影响排序
             // 使用 created_at 作为主要排序键，确保切换session时位置不变
@@ -181,6 +172,7 @@ export function initSession(dom, message, todo) {
                     token_stats: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
                     pending_questions: [],
                     pending_questions_raw: [],
+                    resume_data: {},
                     last_updated: now,
                     created_at: now
                 };
@@ -212,6 +204,32 @@ export function initSession(dom, message, todo) {
             // 如果当前会话的待办事项更新了，更新显示
             if (sessId === appState.sessionId) {
                 todo.updateTodoDisplay();
+            }
+        },
+        
+        // 更新会话的 resume_data
+        updateSessionResumeData(sessId, resumeData) {
+            if (!appState.sessions[sessId]) {
+                const now = new Date().toISOString();
+                appState.sessions[sessId] = {
+                    token_stats: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
+                    pending_questions: [],
+                    pending_questions_raw: [],
+                    resume_data: {},
+                    last_updated: now,
+                    created_at: now
+                };
+            }
+            // 合并 resume_data（保留已有数据，更新新数据）
+            if (resumeData && typeof resumeData === 'object') {
+                appState.sessions[sessId].resume_data = {
+                    ...appState.sessions[sessId].resume_data,
+                    ...resumeData
+                };
+            }
+            // 如果当前会话的 resume_data 更新了，更新显示
+            if (sessId === appState.sessionId) {
+                todo.updateResumeDisplay();
             }
         },
         

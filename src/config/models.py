@@ -178,6 +178,9 @@ class ModelConfig:
         
         agent_config = agents[agent_type].copy()
         
+        # 移除 provider 字段（如果存在），因为现在根据模型名称自动判断
+        agent_config.pop("provider", None)
+        
         # 确保 models 是列表格式（向后兼容）
         if isinstance(agent_config.get("models"), str):
             agent_config["models"] = [agent_config["models"]]
@@ -218,27 +221,68 @@ class ModelConfig:
             return current_index
     
     @classmethod
-    def get_openrouter_config(cls) -> Dict[str, Any]:
+    def get_provider_for_model(cls, model_name: str) -> str:
         """
-        获取 OpenRouter 基础配置
+        根据模型名称判断使用哪个供应方
+        
+        规则：
+        - 如果模型名称以 :free 结尾，使用 openrouter
+        - 其他模型使用 ohmygpt
+        
+        Args:
+            model_name: 模型名称
+        
+        Returns:
+            str: 供应方名称（"openrouter" 或 "ohmygpt"）
+        """
+        if model_name.endswith(":free"):
+            return "openrouter"
+        else:
+            return "ohmygpt"
+    
+    @classmethod
+    def get_provider_config(cls, provider: str = "openrouter") -> Dict[str, Any]:
+        """
+        获取指定供应方的基础配置
+        
+        Args:
+            provider: 供应方名称（如 "openrouter", "ohmygpt"），默认为 "openrouter"
         
         Returns:
             Dict: 包含 api_key, base_url, default_headers 的配置字典
         """
         config = cls._load_config()
-        openrouter = config.get("openrouter", {})
+        provider_config = config.get(provider, {})
         
         # 如果 api_key 是环境变量占位符，尝试从环境变量获取
-        api_key = openrouter.get("api_key")
+        api_key = provider_config.get("api_key")
         if api_key and api_key.startswith("${") and api_key.endswith("}"):
             var_name = api_key[2:-1]
             api_key = os.getenv(var_name, api_key)
         
+        # 根据供应方设置默认值
+        if provider == "ohmygpt":
+            default_base_url = "https://api.ohmygpt.com/v1"
+            default_headers = {}
+        else:  # openrouter 或其他
+            default_base_url = cls.BASE_URL
+            default_headers = cls.DEFAULT_HEADERS
+        
         return {
-            "api_key": api_key or cls.OPENROUTER_API_KEY,
-            "base_url": openrouter.get("base_url", cls.BASE_URL),
-            "default_headers": openrouter.get("default_headers", cls.DEFAULT_HEADERS)
+            "api_key": api_key or (os.getenv(f"{provider.upper()}_API_KEY") if provider != "openrouter" else cls.OPENROUTER_API_KEY),
+            "base_url": provider_config.get("base_url", default_base_url),
+            "default_headers": provider_config.get("default_headers", default_headers)
         }
+    
+    @classmethod
+    def get_openrouter_config(cls) -> Dict[str, Any]:
+        """
+        获取 OpenRouter 基础配置（向后兼容方法）
+        
+        Returns:
+            Dict: 包含 api_key, base_url, default_headers 的配置字典
+        """
+        return cls.get_provider_config("openrouter")
     
     # 向后兼容：保留旧的属性访问方式（类属性）
     @classmethod

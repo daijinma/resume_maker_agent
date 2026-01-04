@@ -19,6 +19,12 @@ export function initChat(dom, message, session) {
     return {
         // 发送消息
         async sendMessage() {
+            // 检查是否有当前会话
+            if (!appState.sessionId) {
+                alert('请先创建新会话或选择一个现有会话');
+                return;
+            }
+            
             const msg = dom.userInput.value.trim();
             if (!msg) return;
             dom.userInput.value = '';
@@ -133,6 +139,11 @@ export function initChat(dom, message, session) {
                 
                 if (data.pending_questions) {
                     session.updateSessionPendingQuestions(appState.sessionId, data.pending_questions);
+                }
+                
+                // 更新 resume_data
+                if (data.resume_data) {
+                    session.updateSessionResumeData(appState.sessionId, data.resume_data);
                 }
                 
                 session.refreshCurrentSessionStats();

@@ -17,6 +17,10 @@ export function initDOM() {
         todoList: document.getElementById('todo-list'),
         todoToggle: document.getElementById('todo-toggle'),
         todoToggleText: document.getElementById('todo-toggle-text'),
+        resumeContainer: document.getElementById('resume-container'),
+        resumeContent: document.getElementById('resume-content'),
+        resumeToggle: document.getElementById('resume-toggle'),
+        resumeToggleText: document.getElementById('resume-toggle-text'),
         editSessionNameBtn: document.getElementById('edit-session-name-btn')
     };
 }

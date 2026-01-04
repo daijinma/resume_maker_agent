@@ -164,7 +164,8 @@ class DualTrackService:
                         "status": "success",
                         "response": response_text,
                         "session_id": session_id,
-                        "pending_questions": [q.get("field", q.get("content", "")) for q in current_pending_questions],
+                        "pending_questions": current_pending_questions,  # 发送完整对象
+                        "resume_data": session_data.get("resume_data", {}),  # 添加 resume_data
                         "agent_type": "dual_track",
                         "debug": {
                             "intents": intents,
@@ -207,7 +208,8 @@ class DualTrackService:
                     "status": "success",
                     "response": side_response,
                     "session_id": session_id,
-                    "pending_questions": [q.get("field", q.get("content", "")) for q in pending_questions],
+                    "pending_questions": pending_questions,  # 发送完整对象
+                    "resume_data": session_data.get("resume_data", {}),  # 添加 resume_data
                     "agent_type": "dual_track",
                     "debug": {
                         "questions_count": len(pending_questions),
@@ -266,7 +268,8 @@ class DualTrackService:
                 "status": "success",
                 "response": response_text,
                 "session_id": session_id,
-                "pending_questions": [q["content"] for q in pending_questions],
+                "pending_questions": pending_questions,  # 发送完整对象
+                "resume_data": session_data.get("resume_data", {}),  # 添加 resume_data
                 "agent_type": "dual_track",
                 "debug": {
                     "intents": intents,
@@ -335,7 +338,8 @@ class DualTrackService:
                     "status": "success",
                     "response": side_response,
                     "session_id": session_id,
-                    "pending_questions": [q.get("field", q.get("content", "")) for q in pending_questions],
+                    "pending_questions": pending_questions,  # 发送完整对象
+                    "resume_data": session_data.get("resume_data", {}),  # 添加 resume_data
                     "agent_type": "dual_track",
                     "debug": {
                         "intents": intents,
@@ -371,7 +375,8 @@ class DualTrackService:
             "status": "success",
             "response": response_text,
             "session_id": session_id,
-            "pending_questions": [q["content"] for q in pending_questions],
+            "pending_questions": pending_questions,  # 发送完整对象
+            "resume_data": session_data.get("resume_data", {}),  # 添加 resume_data
             "agent_type": "dual_track",
             "debug": {
                 "intents": intents,

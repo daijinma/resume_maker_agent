@@ -7,7 +7,8 @@ export const CONFIG = {
     TIMER_UPDATE_INTERVAL: 100, // 毫秒
     AGENT_NAMES: {
         planner_worker: '經典架構',
-        dual_track: '雙軌架構'
+        dual_track: '雙軌架構',
+        simple_chat: '無架構'
     }
 };
 

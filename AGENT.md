@@ -70,17 +70,66 @@ md 和 note 文件夹是给你用的，src 是我们整个代码的范围
 **用途：** 回答用户的正常问题，通过思考-执行-观察循环迭代完善答案
 
 **特点：**
-- **Think（思考）**：分析问题，确定需要的信息和工具
-- **Act（执行）**：调用工具获取信息（网络搜索、计算等）
-- **Observe（观察）**：分析工具返回结果
-- **Evaluate（评估）**：判断答案完整性，决定是否继续迭代
-- 支持多轮迭代，直到答案完整
+- **Think（思考）**：分析问题，确定需要的信息和工具，判断答案是否完整，输出 JSON 格式
+- **Act（执行）**：根据 Think JSON 中的工具参数调用工具（不再使用关键词匹配）
+- **Observe（观察）**：分析工具返回结果，输出 JSON 格式
+- **JSON 数据传递**：各阶段通过结构化 JSON 传递信息，确保准确解析
+- **参数化工具触发**：通过 JSON 参数指定工具，而不是关键词匹配
+- **独立 log 事件**：每个步骤都有独立的 log 事件传输到页面
+- **工具调用详细日志**：工具调用前和调用后都有独立的 log 事件，包含工具名称、参数、返回结果、耗时、错误信息
+- 支持多轮迭代，直到 `is_complete` 为 `true`
 - 实时显示每轮步骤和 Token 使用情况
+
+**工作流程：**
+```
+用户问题 → Think（输出 JSON）→ Act（根据 JSON 调用工具）→ Observe（输出 JSON）
+→ 检查 is_complete → 如果为 true，生成最终答案（纯文本）→ 返回前端
+```
+
+**Think 阶段 JSON 格式：**
+```json
+{
+  "reasoning": "思考内容（1-2句话）",
+  "needs_tool": true,
+  "tool_name": "web_search",
+  "tool_params": {
+    "query": "搜索查询内容",
+    "max_results": 5
+  },
+  "is_complete": false,
+  "next_action": "需要搜索相关信息"
+}
+```
+
+**Observe 阶段 JSON 格式：**
+```json
+{
+  "observation": "观察到的结果分析",
+  "has_enough_info": true,
+  "needs_more": false
+}
+```
 
 **工具支持：**
 - `web_search`：网络搜索（使用博查 API）
 - `calculate`：数学表达式计算
 - `date_calculator`：日期计算
+- `get_current_time`：获取当前系统时间
+
+**工具触发机制：**
+- 不再使用关键词匹配
+- 从 Think JSON 中读取 `tool_name` 和 `tool_params`
+- Act 阶段根据 JSON 参数直接调用对应工具
+
+**停止条件：**
+- Think JSON 中的 `is_complete` 为 `true`
+- 达到最大迭代次数（默认 5 次）
+- 无法获取更多信息
+
+**最终答案生成：**
+- 当 `is_complete` 为 `true` 时，停止循环
+- 使用包含所有迭代完整上下文的提示词生成最终答案
+- **最终答案必须是纯文本格式，不能是 JSON**
 
 **适用场景：**
 - 需要查询最新信息的问题
@@ -90,7 +139,16 @@ md 和 note 文件夹是给你用的，src 是我们整个代码的范围
 
 **实现日期：** 2025-01-24
 
-**相关文档：** `docs/react_agent_implementation.md`
+**最新更新：** 2025-01-24
+- 添加 JSON 格式数据传递
+- 添加参数化工具触发机制
+- 添加独立的 log 事件传输
+- 添加工具调用详细日志
+- 优化最终答案生成逻辑
+
+**相关文档：** 
+- `ReAct_prompt.md`：完整实现提示词和架构设计
+- `docs/react_agent_implementation.md`：实现文档
 
 **配置位置：** `src/config/models.json` → `react_agent`
 

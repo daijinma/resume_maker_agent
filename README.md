@@ -120,8 +120,36 @@ A教育公司聊天简历生成 Agent 项目初始化仓库。
 - `OPENROUTER_API_KEY`: OpenRouter 的 API Key（用于 `:free` 模型）
 - `OHMYGPT_API_KEY`: OhMyGPT 的 API Key（用于其他模型）
 
+## Agent 模式
+
+本项目支持多种 Agent 模式，详见 [AGENT.md](AGENT.md)：
+
+- **Planner-Worker 模式**：结构化数据提取和简历生成
+- **Dual-Track 模式**：双轨推理，支持异步推理和问题生成
+- **Simple Chat 模式**：通用对话模式
+- **ReAct 模式**：思考-执行-观察循环，支持工具调用和网络搜索
+
 ## Makefile 命令说明
 
 - `make install`: 安装项目所需的所有依赖。
 - `make dev`: 启动 FastAPI 开发服务器（默认端口 8000）。
 - `make clean`: 清理项目中的 Python 缓存文件。
+
+## 环境变量
+
+### 必需的环境变量
+
+- `OPENROUTER_API_KEY`: OpenRouter 的 API Key（用于 `:free` 模型）
+- `OHMYGPT_API_KEY`: OhMyGPT 的 API Key（用于其他模型）
+
+### ReAct 模式专用环境变量
+
+- `BOCHA_API_KEY`: 博查 API 密钥（用于 `web_search` 工具）
+
+完整的环境变量配置示例：
+
+```env
+OPENROUTER_API_KEY=your_key_here
+OHMYGPT_API_KEY=your_key_here
+BOCHA_API_KEY=sk-xxxxxxxxxxxxx  # ReAct 模式网络搜索工具
+```

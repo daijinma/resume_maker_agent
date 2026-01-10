@@ -774,21 +774,39 @@ class BaseAgent:
             invoke_vars.update(kwargs)
             messages = prompt.format_messages(**invoke_vars)
             
-            # 使用流式调用 LLM（带工具调用），支持 429 错误自动切换模型
-            def get_stream_with_tools():
-                return self.llm_with_tools.astream(messages)
-            
-            # 流式调用并累积响应
-            stream_iterable = self._stream_with_retry(
-                get_stream_with_tools,
-                "工具调用初始流式",
-                on_sse_event=on_sse_event
-            )
-            response = await self._stream_llm_response(
-                stream_iterable,
-                on_sse_event=on_sse_event
-            )
-            last_response = response
+            # 当有工具时，某些模型不支持流式模式，使用非流式调用
+            # 先尝试流式，如果失败则回退到非流式
+            try:
+                def get_stream_with_tools():
+                    return self.llm_with_tools.astream(messages)
+                
+                # 流式调用并累积响应
+                stream_iterable = self._stream_with_retry(
+                    get_stream_with_tools,
+                    "工具调用初始流式",
+                    on_sse_event=on_sse_event
+                )
+                response = await self._stream_llm_response(
+                    stream_iterable,
+                    on_sse_event=on_sse_event
+                )
+                last_response = response
+            except Exception as e:
+                # 如果流式调用失败（例如不支持流式模式），使用非流式调用
+                error_str = str(e).lower()
+                if "streaming mode" in error_str or "not supported" in error_str or "400" in error_str:
+                    logger.warning(f"流式模式不支持工具调用，切换到非流式模式: {e}")
+                    # 使用非流式调用
+                    async def invoke_with_tools():
+                        return await self._invoke_with_retry(
+                            lambda: self.llm_with_tools.ainvoke(messages),
+                            "工具调用非流式",
+                            on_sse_event=on_sse_event
+                        )
+                    response = await invoke_with_tools()
+                    last_response = response
+                else:
+                    raise
             
             # 累计所有响应的 token（带工具调用时可能有多次 LLM 调用）
             all_responses = [response]
@@ -812,37 +830,57 @@ class BaseAgent:
                         # 计算工具调用耗时
                         tool_duration = time.time() - tool_start_time
                         
-                        # 工具调用完成后，通过回调传递耗时信息（如果回调支持）
+                        # 工具调用完成后，通过回调传递耗时和工具输出信息（如果回调支持）
                         if on_tool_call:
                             try:
-                                # 尝试传递耗时信息（如果回调支持额外的 duration 参数）
+                                # 尝试传递耗时和工具输出信息（如果回调支持额外的参数）
                                 import inspect
                                 sig = inspect.signature(on_tool_call)
-                                # 检查回调是否支持 duration 参数
-                                if 'duration' in sig.parameters or len(sig.parameters) >= 3:
-                                    # 如果支持，传递耗时
+                                param_count = len(sig.parameters)
+                                # 检查回调支持的参数数量
+                                if param_count >= 4:
+                                    # 如果支持4个或更多参数，传递 tool_output
+                                    await on_tool_call(tool_name, tool_call["args"], tool_duration, tool_output)
+                                elif param_count >= 3:
+                                    # 如果支持3个参数，传递 duration
                                     await on_tool_call(tool_name, tool_call["args"], tool_duration)
-                            except (TypeError, ValueError):
+                            except (TypeError, ValueError) as e:
                                 # 如果不支持，忽略（不影响主流程）
+                                logger.debug(f"工具调用回调不支持额外参数: {e}")
                                 pass
                         
                         messages.append(ToolMessage(content=str(tool_output), tool_call_id=tool_call["id"]))
                 
-                # 使用流式调用 LLM（工具调用循环），支持 429 错误自动切换模型
-                def get_stream_with_tools_loop():
-                    return self.llm_with_tools.astream(messages)
-                
-                stream_iterable = self._stream_with_retry(
-                    get_stream_with_tools_loop,
-                    "工具调用循环流式",
-                    on_sse_event=on_sse_event
-                )
-                response = await self._stream_llm_response(
-                    stream_iterable,
-                    on_sse_event=on_sse_event
-                )
-                all_responses.append(response)
-                last_response = response
+                # 使用流式调用 LLM（工具调用循环），如果失败则使用非流式
+                try:
+                    def get_stream_with_tools_loop():
+                        return self.llm_with_tools.astream(messages)
+                    
+                    stream_iterable = self._stream_with_retry(
+                        get_stream_with_tools_loop,
+                        "工具调用循环流式",
+                        on_sse_event=on_sse_event
+                    )
+                    response = await self._stream_llm_response(
+                        stream_iterable,
+                        on_sse_event=on_sse_event
+                    )
+                    all_responses.append(response)
+                    last_response = response
+                except Exception as e:
+                    # 如果流式调用失败，使用非流式调用
+                    error_str = str(e).lower()
+                    if "streaming mode" in error_str or "not supported" in error_str or "400" in error_str:
+                        logger.warning(f"工具调用循环流式模式失败，切换到非流式模式: {e}")
+                        response = await self._invoke_with_retry(
+                            lambda: self.llm_with_tools.ainvoke(messages),
+                            "工具调用循环非流式",
+                            on_sse_event=on_sse_event
+                        )
+                        all_responses.append(response)
+                        last_response = response
+                    else:
+                        raise
             
             # 保存所有响应以便后续 token 统计
             self._all_responses = all_responses

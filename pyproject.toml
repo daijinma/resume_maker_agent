@@ -6,6 +6,7 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "httpx",
+    "requests",  # 用于博查 API 网络搜索
     "python-dotenv",
     "openai",
     "sse-starlette",

@@ -8,7 +8,24 @@ from src.api.routes import api_router
 from src.utils.logger import setup_logger
 
 # 初始化日志
+# 配置根 logger，确保所有子 logger 都能输出
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+if not root_logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.INFO)
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    handler.setFormatter(formatter)
+    root_logger.addHandler(handler)
+
+# 配置特定的 logger
 setup_logger("resume-api", logging.INFO)
+setup_logger("resume-agent", logging.INFO)  # 配置 resume-agent 父 logger
+setup_logger("api", logging.INFO)  # 配置 api 父 logger
+setup_logger("service", logging.INFO)  # 配置 service 父 logger
+
 logger = logging.getLogger("resume-api")
 
 app = FastAPI(title="Chat-to-Resume Multi-Agent API")

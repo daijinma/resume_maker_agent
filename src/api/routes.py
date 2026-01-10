@@ -13,6 +13,7 @@ from src.schema import StreamRequest, AgentType
 from src.service.planner_worker_service import PlannerWorkerService
 from src.service.dual_track_service import DualTrackService
 from src.service.simple_chat_service import SimpleChatService
+from src.service.react_service import ReActService
 from src.service.session_service import SessionService
 from src.service.token_statistics_service import TokenStatisticsService
 from src.config.settings import Settings
@@ -49,6 +50,7 @@ _session_service = None
 _planner_worker_service = None
 _dual_track_service = None
 _simple_chat_service = None
+_react_service = None
 _token_statistics_service = None
 
 
@@ -87,6 +89,15 @@ def get_simple_chat_service() -> SimpleChatService:
         session_service = get_session_service()
         _simple_chat_service = SimpleChatService(session_service)
     return _simple_chat_service
+
+
+def get_react_service() -> ReActService:
+    """获取 ReAct 服务实例（懒加载）"""
+    global _react_service
+    if _react_service is None:
+        session_service = get_session_service()
+        _react_service = ReActService(session_service)
+    return _react_service
 
 
 def get_token_statistics_service() -> TokenStatisticsService:
@@ -202,6 +213,8 @@ async def stream(request: StreamRequest):
                         service = get_dual_track_service()
                     elif selected_agent == AgentType.SIMPLE_CHAT:
                         service = get_simple_chat_service()
+                    elif selected_agent == AgentType.REACT:
+                        service = get_react_service()
                     else:
                         service = get_planner_worker_service()
                     
@@ -291,6 +304,15 @@ async def stream(request: StreamRequest):
                         })
                         # #endregion
                         
+                        # react_step 事件直接传递，不进行格式化
+                        if event_type == "react_step":
+                            await sse_events_queue.put({
+                                "type": "react_step",
+                                **data  # 直接传递所有数据
+                            })
+                            logger.info(f"[SSE] 🔄 ReAct 步骤事件已放入队列: 迭代 {data.get('iteration', '?')}, 步骤 {data.get('step', '?')}")
+                            return
+                        
                         # partial 事件直接传递，不进行格式化
                         if event_type == "partial":
                             partial_content = data.get("content", "")
@@ -298,12 +320,21 @@ async def stream(request: StreamRequest):
                             logger.info(f"[SSE] 📝 Partial 事件: content_len={len(partial_content)}, accumulated_len={len(partial_accumulated) if partial_accumulated else 0}")
                             logger.info(f"[SSE]   内容预览: content={partial_content[:50]}, accumulated={partial_accumulated[:50] if partial_accumulated else ''}")
                             
+                            # 检查是否有 ReAct 步骤信息
+                            react_iteration = data.get("react_iteration")
+                            react_step = data.get("react_step")
+                            
                             await sse_events_queue.put({
                                 "type": "partial",
                                 "content": partial_content,
                                 "accumulated": partial_accumulated,
+                                "react_iteration": react_iteration,  # 添加步骤信息
+                                "react_step": react_step,  # 添加步骤信息
                                 "debug": data
                             })
+                            
+                            if react_iteration and react_step:
+                                logger.info(f"[SSE] Partial 事件包含 ReAct 步骤信息: 迭代 {react_iteration}, 步骤 {react_step}")
                             
                             # #region agent log
                             queue_put_duration = time.time() - queue_put_start
@@ -405,10 +436,29 @@ async def stream(request: StreamRequest):
                                     
                                     yield_start = time.time()
                                     logger.info(f"[SSE] 准备 yield SSE 事件: type={event['type']}, content_length={len(event.get('content', ''))}")
-                                    sse_event = _yield_event(event["type"], {
-                                        "content": event["content"],
-                                        "debug": event.get("debug", {})
-                                    })
+                                    
+                                    # 对于 react_step 事件，需要传递所有字段
+                                    if event["type"] == "react_step":
+                                        # react_step 事件需要传递所有数据字段，包括 tool_calls
+                                        sse_event = _yield_event(event["type"], {
+                                            "iteration": event.get("iteration"),
+                                            "step": event.get("step"),
+                                            "description": event.get("description", ""),
+                                            "model": event.get("model"),
+                                            "input_tokens": event.get("input_tokens", 0),
+                                            "output_tokens": event.get("output_tokens", 0),
+                                            "total_tokens": event.get("total_tokens", 0),
+                                            "duration": event.get("duration", 0.0),
+                                            "content": event.get("content"),
+                                            "tool_calls": event.get("tool_calls")  # 添加 tool_calls 字段
+                                        })
+                                        logger.info(f"[SSE] react_step 事件已 yield，包含 tool_calls: {bool(event.get('tool_calls'))}, tool_calls 数量: {len(event.get('tool_calls', []))}")
+                                    else:
+                                        sse_event = _yield_event(event["type"], {
+                                            "content": event.get("content", ""),
+                                            "accumulated": event.get("accumulated", ""),
+                                            "debug": event.get("debug", {})
+                                        })
                                     yield sse_event
                                     yield_duration = time.time() - yield_start
                                     events_yielded += 1
@@ -480,10 +530,28 @@ async def stream(request: StreamRequest):
                             event = sse_events_queue.get_nowait()
                             remaining_sse_events += 1
                             logger.info(f"[SSE] 处理剩余SSE事件 #{remaining_sse_events}: type={event['type']}")
-                            sse_event = _yield_event(event["type"], {
-                                "content": event["content"],
-                                "debug": event.get("debug", {})
-                            })
+                            
+                            # 对于 react_step 事件，需要传递所有字段
+                            if event.get("type") == "react_step":
+                                sse_event = _yield_event(event["type"], {
+                                    "iteration": event.get("iteration"),
+                                    "step": event.get("step"),
+                                    "description": event.get("description", ""),
+                                    "model": event.get("model"),
+                                    "input_tokens": event.get("input_tokens", 0),
+                                    "output_tokens": event.get("output_tokens", 0),
+                                    "total_tokens": event.get("total_tokens", 0),
+                                    "duration": event.get("duration", 0.0),
+                                    "content": event.get("content"),
+                                    "tool_calls": event.get("tool_calls")  # 添加 tool_calls 字段
+                                })
+                                logger.info(f"[SSE] react_step 事件已 yield（剩余事件），包含 tool_calls: {bool(event.get('tool_calls'))}, tool_calls 数量: {len(event.get('tool_calls', []))}")
+                            else:
+                                sse_event = _yield_event(event["type"], {
+                                    "content": event.get("content", ""),
+                                    "accumulated": event.get("accumulated", ""),
+                                    "debug": event.get("debug", {})
+                                })
                             yield sse_event
                         except asyncio.QueueEmpty:
                             break

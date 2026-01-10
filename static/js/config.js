@@ -8,7 +8,8 @@ export const CONFIG = {
     AGENT_NAMES: {
         planner_worker: '經典架構',
         dual_track: '雙軌架構',
-        simple_chat: '無架構'
+        simple_chat: '無架構',
+        react: 'ReAct 模式'
     }
 };
 

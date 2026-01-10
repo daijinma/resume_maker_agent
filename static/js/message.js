@@ -44,7 +44,7 @@ export function initMessage(dom) {
                 // 确保计时器始终在最底部
                 ensureTimerAtBottom(dom);
                 
-                dom.chatContainer.scrollTop = dom.chatContainer.scrollHeight;
+                // 取消自动滚动：dom.chatContainer.scrollTop = dom.chatContainer.scrollHeight;
                 return div;
             }
 
@@ -103,7 +103,7 @@ export function initMessage(dom) {
                 // 确保计时器始终在最底部
                 ensureTimerAtBottom(dom);
                 
-                dom.chatContainer.scrollTop = dom.chatContainer.scrollHeight;
+                // 取消自动滚动：dom.chatContainer.scrollTop = dom.chatContainer.scrollHeight;
                 return div;
             }
 
@@ -184,7 +184,7 @@ export function initMessage(dom) {
             // 确保计时器始终在最底部
             ensureTimerAtBottom(dom);
             
-            dom.chatContainer.scrollTop = dom.chatContainer.scrollHeight;
+            // 取消自动滚动：dom.chatContainer.scrollTop = dom.chatContainer.scrollHeight;
             return div;
         }
     };

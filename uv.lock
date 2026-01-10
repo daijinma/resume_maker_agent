@@ -894,6 +894,7 @@ dependencies = [
     { name = "langchain-openai" },
     { name = "openai" },
     { name = "python-dotenv" },
+    { name = "requests" },
     { name = "sse-starlette" },
     { name = "uvicorn" },
 ]
@@ -908,6 +909,7 @@ requires-dist = [
     { name = "langchain-openai" },
     { name = "openai" },
     { name = "python-dotenv" },
+    { name = "requests" },
     { name = "sse-starlette" },
     { name = "uvicorn" },
 ]

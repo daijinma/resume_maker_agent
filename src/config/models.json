@@ -143,12 +143,20 @@
     },
     "simple_chat": {
       "models": [
-        "google/gemini-2.0-flash-lite:free",
-        "gemini-2.0-flash-lite"
+         "gemini-2.0-flash-lite"
       ],
       "temperature": 0.7,
       "max_tokens": 8192,
       "timeout": 60.0
+    },
+    "react_agent": {
+      "models": [
+        "gemini-2.0-flash-lite"
+      ],
+      "temperature": 0.7,
+      "max_tokens": 8192,
+      "timeout": 60.0,
+      "max_iterations": 5
     }
   }
 }
